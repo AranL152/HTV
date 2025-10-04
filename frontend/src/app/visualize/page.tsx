@@ -83,6 +83,7 @@ function VisualizeContent() {
           <MetricsPanel
             data={data}
             datasetId={datasetId}
+            onSuggestionsReceived={setData}
           />
         </div>
 

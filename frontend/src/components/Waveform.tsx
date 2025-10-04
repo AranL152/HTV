@@ -79,6 +79,39 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     return path;
   };
 
+  const generateSuggestedPath = () => {
+    if (data.peaks.length === 0) return '';
+
+    // Check if any peak has suggested counts
+    const hasSuggestions = data.peaks.some(p => p.suggestedCount !== undefined);
+    if (!hasSuggestions) return '';
+
+    // Find the maximum cluster size to normalize heights
+    const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+
+    const points = data.peaks.map((p) => {
+      // Use suggestedCount if available, fallback to selectedCount
+      const suggestedCount = p.suggestedCount ?? p.selectedCount;
+      const ratio = maxSampleCount > 0 ? suggestedCount / maxSampleCount : 1;
+      return {
+        x: p.x * (width - 2 * padding) + padding,
+        y: (1 - ratio) * (height - 2 * padding) + padding,
+      };
+    });
+
+    let path = `M ${points[0].x} ${points[0].y}`;
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const dx = (curr.x - prev.x) / 3;
+
+      path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
+    }
+
+    return path;
+  };
+
   const handleMouseDown = (peakId: number) => {
     setDraggingPeak(peakId);
     setHasDragged(false);
@@ -172,6 +205,18 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
           opacity={0.3}
         />
 
+        {/* AI Suggested waveform path */}
+        {generateSuggestedPath() && (
+          <path
+            d={generateSuggestedPath()}
+            stroke="#3b82f6"
+            strokeWidth={2}
+            fill="none"
+            opacity={0.5}
+            strokeDasharray="5,5"
+          />
+        )}
+
         {/* Smooth waveform path (current selected counts) */}
         <path
           d={generateSmoothPath()}
@@ -198,6 +243,35 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                 stroke="#ffffff"
                 strokeWidth={1}
                 opacity={0.3}
+                className="pointer-events-none"
+              />
+            );
+          });
+        })()}
+
+        {/* AI Suggested peak markers */}
+        {(() => {
+          const hasSuggestions = data.peaks.some(p => p.suggestedCount !== undefined);
+          if (!hasSuggestions) return null;
+
+          const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+          return data.peaks.map((peak) => {
+            if (peak.suggestedCount === undefined) return null;
+
+            const ratio = maxSampleCount > 0 ? peak.suggestedCount / maxSampleCount : 1;
+            const x = peak.x * (width - 2 * padding) + padding;
+            const y = (1 - ratio) * (height - 2 * padding) + padding;
+
+            return (
+              <circle
+                key={`suggested-${peak.id}`}
+                cx={x}
+                cy={y}
+                r={5}
+                fill="#3b82f6"
+                stroke="#ffffff"
+                strokeWidth={1}
+                opacity={0.6}
                 className="pointer-events-none"
               />
             );

@@ -6,6 +6,8 @@ export interface ClusterPeak {
   id: number;
   x: number;              // 0-1 position along waveform
   selectedCount: number;  // Number of datapoints selected (0 to sampleCount)
+  suggestedCount?: number;  // AI-suggested count for this cluster
+  reasoning?: string;     // AI reasoning for suggestion
   label: string;          // Gemini-generated description
   color: string;          // Hex color for visualization
   sampleCount: number;    // Total number of data points in cluster
@@ -20,6 +22,7 @@ export interface WaveformData {
     flatnessScore: number;
     avgAmplitude: number;  // Average selection ratio (selectedCount/sampleCount)
   };
+  strategy?: string;  // AI strategy description (for suggestions)
 }
 
 // API types
@@ -60,4 +63,5 @@ export interface ChatRequest {
 
 export interface ChatResponse {
   response: string;
+  suggestions?: WaveformData;  // Optional waveform suggestions from chat
 }

@@ -10,6 +10,7 @@ import type {
   ApiError,
   ChatRequest,
   ChatResponse,
+  ChatMessage,
 } from '@/types';
 
 const API_URL = config.apiUrl;
@@ -147,5 +148,32 @@ export const apiClient = {
     );
 
     return handleResponse<ChatResponse>(response);
+  },
+
+  /**
+   * Get AI-suggested balance for dataset
+   */
+  async suggestBalance(datasetId: string): Promise<WaveformData> {
+    const response = await fetchWithTimeout(
+      `${API_URL}/api/suggest-balance/${datasetId}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      },
+      60000 // 60s timeout for AI analysis
+    );
+
+    return handleResponse<WaveformData>(response);
+  },
+
+  /**
+   * Get chat history for dataset
+   */
+  async getChatHistory(datasetId: string): Promise<{ messages: ChatMessage[] }> {
+    const response = await fetchWithTimeout(
+      `${API_URL}/api/chat-history/${datasetId}`
+    );
+
+    return handleResponse<{ messages: ChatMessage[] }>(response);
   },
 };

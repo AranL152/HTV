@@ -2,39 +2,32 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
-import type { ChatMessage } from '@/types';
+import type { ChatMessage, WaveformData } from '@/types';
 
 interface ChatBoxProps {
   datasetId: string;
+  onSuggestionsReceived?: (data: WaveformData) => void;
 }
 
-export default function ChatBox({ datasetId }: ChatBoxProps) {
+export default function ChatBox({ datasetId, onSuggestionsReceived }: ChatBoxProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load chat history from localStorage on mount
+  // Load chat history from backend on mount
   useEffect(() => {
-    const storageKey = `chat-history-${datasetId}`;
-    const savedMessages = localStorage.getItem(storageKey);
-    if (savedMessages) {
+    const loadChatHistory = async () => {
       try {
-        const parsed = JSON.parse(savedMessages);
-        setMessages(parsed);
+        const history = await apiClient.getChatHistory(datasetId);
+        setMessages(history.messages || []);
       } catch (error) {
-        console.error('Failed to parse saved chat history:', error);
+        console.error('Failed to load chat history:', error);
       }
-    }
-  }, [datasetId]);
+    };
 
-  // Save chat history to localStorage whenever messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      const storageKey = `chat-history-${datasetId}`;
-      localStorage.setItem(storageKey, JSON.stringify(messages));
-    }
-  }, [messages, datasetId]);
+    loadChatHistory();
+  }, [datasetId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,7 +54,7 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
 
     try {
       const response = await apiClient.chat(datasetId, input.trim());
-      
+
       const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: response.response,
@@ -69,6 +62,11 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // If chat response includes new suggestions, update waveform
+      if (response.suggestions && onSuggestionsReceived) {
+        onSuggestionsReceived(response.suggestions);
+      }
     } catch (error) {
       let errorContent = 'Failed to get response';
       
@@ -91,25 +89,11 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
     }
   };
 
-  const handleClearHistory = () => {
-    setMessages([]);
-    const storageKey = `chat-history-${datasetId}`;
-    localStorage.removeItem(storageKey);
-  };
 
   return (
     <div className="flex flex-col h-full max-h-[calc(100vh-12rem)]">
       <div className="p-3 sm:p-4 border-b border-[#333] flex items-center justify-between">
         <h3 className="text-base sm:text-lg font-semibold">Ask About Your Dataset</h3>
-        {messages.length > 0 && (
-          <button
-            onClick={handleClearHistory}
-            className="text-xs text-white/40 hover:text-white/80 transition-colors px-2 py-1 hover:bg-white/5 rounded"
-            title="Clear chat history"
-          >
-            Clear
-          </button>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
