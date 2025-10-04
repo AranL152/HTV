@@ -63,7 +63,7 @@ def build_waveform(
     ])
 
     # Normalize sizes to amplitudes (0-1 range based on max cluster size)
-    max_size = cluster_sizes.max()
+    max_size = float(cluster_sizes.max())
     if max_size == 0:
         amplitudes = np.ones(len(cluster_sizes))
     else:

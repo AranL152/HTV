@@ -50,8 +50,8 @@ def project_to_1d(cluster_centers: np.ndarray) -> np.ndarray:
 
     # Normalize to 0-1 range
     positions_flat = positions.flatten()
-    min_pos = positions_flat.min()
-    max_pos = positions_flat.max()
+    min_pos = float(positions_flat.min())
+    max_pos = float(positions_flat.max())
 
     # Handle case where all positions are the same
     if max_pos == min_pos:

@@ -61,7 +61,7 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read CSV: {str(e)}")
 
-    if df.empty or len(df) < 5:
+    if len(df) == 0 or len(df) < 5:
         raise HTTPException(status_code=400, detail="Dataset must contain at least 5 rows")
 
     # Generate unique dataset ID
@@ -70,9 +70,16 @@ async def upload_file(file: UploadFile = File(...)):
 
     # Process pipeline
     try:
+        print("Generating embeddings...")
         embeddings = generate_embeddings(df)
+
+        print("Clustering data...")
         clusters = cluster_data(embeddings)
+
+        print("Analyzing clusters...")
         descriptions = analyze_clusters(df, clusters)
+
+        print("Building waveform...")
         waveform_data = build_waveform(embeddings, clusters, descriptions)
 
         # Store everything
@@ -90,6 +97,9 @@ async def upload_file(file: UploadFile = File(...)):
         }
 
     except Exception as e:
+        import traceback
+        print(f"Error occurred: {str(e)}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 

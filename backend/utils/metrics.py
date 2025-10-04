@@ -25,7 +25,7 @@ def calculate_gini_coefficient(values: Union[List[float], np.ndarray]) -> float:
         >>> calculate_gini_coefficient([0, 0, 0, 100])  # High inequality
         0.75
     """
-    if not values or len(values) == 0:
+    if len(values) == 0:
         return 0.0
 
     # Convert to numpy array if needed
