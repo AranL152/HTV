@@ -55,36 +55,38 @@ function VisualizeContent() {
   }
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+      <div className="max-w-full mx-auto space-y-6 lg:space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Dataset Visualization</h1>
-            <p className="text-white/60 mt-2">
+            <h1 className="text-2xl sm:text-3xl font-bold">Dataset Visualization</h1>
+            <p className="text-white/60 mt-2 text-sm sm:text-base">
               Drag peaks up or down to adjust cluster weights
             </p>
           </div>
           <Link
             href="/"
-            className="text-white/60 hover:text-white transition-colors"
+            className="text-white/60 hover:text-white transition-colors text-sm sm:text-base"
           >
             ← New dataset
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_350px] gap-4 lg:gap-6 xl:gap-8 h-[calc(100vh-8rem)] lg:h-[calc(100vh-10rem)]">
+          <div className="space-y-4 flex flex-col min-w-0">
             <Waveform
               datasetId={datasetId}
               initialData={data}
               onDataUpdate={setData}
             />
-            <div className="text-sm text-white/40 text-center">
+            <div className="text-xs sm:text-sm text-white/40 text-center px-2">
               Drag peaks vertically to adjust cluster representation • 0% = exclude, 100% = original, 200% = 2x weight
             </div>
           </div>
 
-          <MetricsPanel data={data} datasetId={datasetId} />
+          <div className="w-full xl:w-auto">
+            <MetricsPanel data={data} datasetId={datasetId} />
+          </div>
         </div>
       </div>
     </div>

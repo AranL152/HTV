@@ -48,3 +48,18 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
+
+// Chat types
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
+export interface ChatRequest {
+  message: string;
+}
+
+export interface ChatResponse {
+  response: string;
+}

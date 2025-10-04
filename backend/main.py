@@ -6,6 +6,7 @@ from typing import Dict, List
 import pandas as pd
 import io
 import uuid
+import google.generativeai as genai
 
 from config import Config
 from services.embedder import generate_embeddings
@@ -13,6 +14,9 @@ from services.clusterer import cluster_data
 from services.analyzer import analyze_clusters
 from services.waveform import build_waveform
 from utils.metrics import calculate_gini_coefficient
+
+# Configure Gemini
+genai.configure(api_key=Config.GEMINI_API_KEY)
 
 app = FastAPI(title="Level API", version="1.0.0")
 
@@ -38,6 +42,10 @@ class AmplitudeAdjustment(BaseModel):
 
 class AdjustmentRequest(BaseModel):
     adjustments: List[AmplitudeAdjustment]
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
 
 
 @app.post("/api/upload")
@@ -174,6 +182,75 @@ async def export_dataset(dataset_id: str):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@app.post("/api/chat/{dataset_id}")
+async def chat_about_dataset(dataset_id: str, request: ChatRequest):
+    """Chat with Gemini about the dataset and clusters."""
+    if dataset_id not in datasets:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    try:
+        dataset_info = datasets[dataset_id]
+        df = dataset_info['df']
+        waveform = dataset_info['waveform']
+        
+        # Build context about the dataset
+        context_parts = [
+            f"Dataset Overview:",
+            f"- Total data points: {len(df)}",
+            f"- Number of clusters: {len(waveform['peaks'])}",
+            f"- Columns: {', '.join(df.columns.tolist())}",
+            f"\nDataset sample (first 5 rows):",
+            df.head().to_string(),
+            f"\n\nCluster Information:"
+        ]
+        
+        # Add cluster details
+        for peak in waveform['peaks']:
+            context_parts.append(
+                f"\nCluster {peak['id']}:"
+                f"\n  - Label: {peak['label']}"
+                f"\n  - Sample count: {peak['sampleCount']}"
+                f"\n  - Current weight: {peak['weight']:.2f}"
+                f"\n  - Position: {peak['x']:.2%} along data distribution"
+                f"\n  - Sample examples: {', '.join(peak['samples'][:3])}"
+            )
+        
+        # Add metrics
+        metrics = waveform['metrics']
+        context_parts.append(
+            f"\n\nCurrent Metrics:"
+            f"\n  - Gini Coefficient: {metrics['giniCoefficient']:.3f}"
+            f"\n  - Flatness Score: {metrics['flatnessScore']:.3f}"
+            f"\n  - Average Amplitude: {metrics['avgAmplitude']:.3f}"
+        )
+        
+        context = "\n".join(context_parts)
+        
+        # Create prompt for Gemini
+        prompt = f"""You are an AI assistant helping users understand their dataset clustering analysis.
+
+Context about the current dataset:
+{context}
+
+User Question: {request.message}
+
+Please provide a helpful, concise answer based on the dataset information provided. If the question is about a specific cluster, reference the cluster details above. If asking for recommendations, consider the current metrics and cluster distribution."""
+
+        # Call Gemini API
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        response = model.generate_content(prompt)
+        
+        return {
+            "response": response.text
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"Chat error: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 
 if __name__ == "__main__":

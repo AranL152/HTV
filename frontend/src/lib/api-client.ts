@@ -8,6 +8,8 @@ import type {
   WaveformData,
   AdjustmentRequest,
   ApiError,
+  ChatRequest,
+  ChatResponse,
 } from '@/types';
 
 const API_URL = config.apiUrl;
@@ -128,5 +130,22 @@ export const apiClient = {
     }
 
     return response.blob();
+  },
+
+  /**
+   * Send chat message about dataset
+   */
+  async chat(datasetId: string, message: string): Promise<ChatResponse> {
+    const response = await fetchWithTimeout(
+      `${API_URL}/api/chat/${datasetId}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message } as ChatRequest),
+      },
+      60000 // 60s timeout for AI response
+    );
+
+    return handleResponse<ChatResponse>(response);
   },
 };
