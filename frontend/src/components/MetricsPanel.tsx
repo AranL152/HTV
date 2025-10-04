@@ -106,7 +106,7 @@ export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
 
             <div className="pt-3 lg:pt-4 border-t border-[#333]">
               <h3 className="text-xs sm:text-sm font-semibold mb-2 lg:mb-3">Cluster Breakdown</h3>
-              <div className="space-y-1 lg:space-y-2 max-h-32 lg:max-h-48 overflow-y-auto">
+              <div className="space-y-1 lg:space-y-2 max-h-24 lg:max-h-32 overflow-y-auto">
                 {data.peaks.map((peak) => (
                   <div key={peak.id} className="flex items-center gap-2 text-xs sm:text-sm">
                     <div
