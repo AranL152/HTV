@@ -39,12 +39,12 @@ export default function ClusterDetailModal({ cluster, onClose }: ClusterDetailMo
         {/* Metrics */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-black/30 rounded p-3">
-            <div className="text-white/60 text-sm">Sample Count</div>
+            <div className="text-white/60 text-sm">Total Count</div>
             <div className="text-xl font-semibold mt-1">{cluster.sampleCount.toLocaleString()}</div>
           </div>
           <div className="bg-black/30 rounded p-3">
-            <div className="text-white/60 text-sm">Current Weight</div>
-            <div className="text-xl font-semibold mt-1">{(cluster.weight * 100).toFixed(0)}%</div>
+            <div className="text-white/60 text-sm">Selected Count</div>
+            <div className="text-xl font-semibold mt-1">{(cluster.selectedCount ?? cluster.sampleCount).toLocaleString()} / {cluster.sampleCount.toLocaleString()}</div>
           </div>
         </div>
 

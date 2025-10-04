@@ -94,7 +94,7 @@ export const apiClient = {
   },
 
   /**
-   * Adjust peak amplitudes
+   * Adjust peak selected counts
    */
   async adjustAmplitudes(
     datasetId: string,

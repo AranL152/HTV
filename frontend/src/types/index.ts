@@ -5,12 +5,10 @@
 export interface ClusterPeak {
   id: number;
   x: number;              // 0-1 position along waveform
-  amplitude: number;      // Current height (adjustable)
-  originalAmplitude: number;
+  selectedCount: number;  // Number of datapoints selected (0 to sampleCount)
   label: string;          // Gemini-generated description
-  weight: number;         // Sampling weight
   color: string;          // Hex color for visualization
-  sampleCount: number;    // Number of data points in cluster
+  sampleCount: number;    // Total number of data points in cluster
   samples: string[];      // Representative samples for tooltip
 }
 
@@ -20,7 +18,7 @@ export interface WaveformData {
   metrics: {
     giniCoefficient: number;
     flatnessScore: number;
-    avgAmplitude: number;
+    avgAmplitude: number;  // Average selection ratio (selectedCount/sampleCount)
   };
 }
 
@@ -28,7 +26,7 @@ export interface WaveformData {
 export interface AdjustmentRequest {
   adjustments: Array<{
     id: number;
-    amplitude: number;
+    selectedCount: number;
   }>;
 }
 

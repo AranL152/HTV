@@ -6,6 +6,7 @@ from typing import Dict, List
 import pandas as pd
 import io
 import uuid
+import random
 
 from config import Config
 from services.embedder import generate_embeddings
@@ -31,13 +32,13 @@ datasets: Dict[str, Dict] = {}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
-class AmplitudeAdjustment(BaseModel):
+class CountAdjustment(BaseModel):
     id: int = Field(..., ge=0)
-    amplitude: float = Field(..., ge=0, le=2)
+    selectedCount: int = Field(..., ge=0)
 
 
 class AdjustmentRequest(BaseModel):
-    adjustments: List[AmplitudeAdjustment]
+    adjustments: List[CountAdjustment]
 
 
 @app.post("/api/upload")
@@ -113,35 +114,45 @@ async def get_waveform(dataset_id: str):
 
 
 @app.post("/api/adjust/{dataset_id}")
-async def adjust_weights(dataset_id: str, request: AdjustmentRequest):
-    """Adjust peak amplitudes and recalculate metrics."""
+async def adjust_counts(dataset_id: str, request: AdjustmentRequest):
+    """Adjust peak selected counts and recalculate metrics."""
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     waveform = datasets[dataset_id]['waveform']
     peak_ids = {peak['id'] for peak in waveform['peaks']}
 
-    # Validate cluster IDs exist
+    # Validate cluster IDs exist and selected count is within valid range
     for adjustment in request.adjustments:
         if adjustment.id not in peak_ids:
             raise HTTPException(status_code=400, detail=f"Cluster {adjustment.id} not found")
 
-    # Update amplitudes and weights
+        # Find the peak to validate selectedCount
+        peak = next((p for p in waveform['peaks'] if p['id'] == adjustment.id), None)
+        if peak and adjustment.selectedCount > peak['sampleCount']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Selected count ({adjustment.selectedCount}) cannot exceed sample count ({peak['sampleCount']})"
+            )
+
+    # Update selected counts
     for adjustment in request.adjustments:
         for peak in waveform['peaks']:
             if peak['id'] == adjustment.id:
-                peak['amplitude'] = adjustment.amplitude
-                peak['weight'] = adjustment.amplitude / peak['originalAmplitude']
+                peak['selectedCount'] = adjustment.selectedCount
                 break
 
-    # Recalculate metrics
-    amplitudes = [peak['amplitude'] for peak in waveform['peaks']]
-    gini = calculate_gini_coefficient(amplitudes)
+    # Recalculate metrics based on selection ratios
+    selection_ratios = [
+        peak['selectedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
+        for peak in waveform['peaks']
+    ]
+    gini = calculate_gini_coefficient(selection_ratios)
 
     waveform['metrics'] = {
         "giniCoefficient": float(gini),
         "flatnessScore": float(1 - gini),
-        "avgAmplitude": float(sum(amplitudes) / len(amplitudes))
+        "avgAmplitude": float(sum(selection_ratios) / len(selection_ratios))
     }
 
     return waveform
@@ -149,7 +160,7 @@ async def adjust_weights(dataset_id: str, request: AdjustmentRequest):
 
 @app.get("/api/export/{dataset_id}")
 async def export_dataset(dataset_id: str):
-    """Export dataset with weight column."""
+    """Export pruned dataset based on selectedCount per cluster."""
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -158,13 +169,36 @@ async def export_dataset(dataset_id: str):
         clusters = datasets[dataset_id]['clusters']
         waveform = datasets[dataset_id]['waveform']
 
-        # Create weight mapping and add weight column
-        weight_map = {peak['id']: peak['weight'] for peak in waveform['peaks']}
-        df['weight'] = [weight_map.get(cluster_id, 1.0) for cluster_id in clusters]
+        # Create selectedCount mapping
+        selected_map = {peak['id']: peak['selectedCount'] for peak in waveform['peaks']}
+
+        # Prune dataset: keep only selectedCount rows per cluster
+        selected_indices = []
+        random.seed(42)  # For reproducibility
+
+        for cluster_id in set(clusters):
+            # Get all indices for this cluster
+            cluster_mask = clusters == cluster_id
+            cluster_indices = df[cluster_mask].index.tolist()
+
+            # Get selected count for this cluster
+            selected_count = selected_map.get(cluster_id, len(cluster_indices))
+            selected_count = min(selected_count, len(cluster_indices))
+
+            # Randomly sample selectedCount rows from this cluster
+            if selected_count > 0:
+                sampled_indices = random.sample(cluster_indices, selected_count)
+                selected_indices.extend(sampled_indices)
+
+        # Create pruned dataframe with selected rows
+        if not selected_indices:
+            raise HTTPException(status_code=400, detail="No data selected for export")
+
+        pruned_df = df.loc[selected_indices].copy()
 
         # Convert to CSV
         output = io.StringIO()
-        df.to_csv(output, index=False)
+        pruned_df.to_csv(output, index=False)
         output.seek(0)
 
         return StreamingResponse(

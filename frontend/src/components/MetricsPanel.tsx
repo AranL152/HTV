@@ -71,7 +71,7 @@ export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
 
               {/* Sample count */}
               <span className="text-white/60 text-xs">
-                {peak.sampleCount} ({(peak.weight * 100).toFixed(0)}%)
+                {peak.sampleCount.toLocaleString()} ({(peak.selectedCount ?? peak.sampleCount).toLocaleString()} selected)
               </span>
             </div>
           ))}

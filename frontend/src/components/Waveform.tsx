@@ -25,10 +25,18 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   const generateSmoothPath = () => {
     if (data.peaks.length === 0) return '';
 
-    const points = data.peaks.map((p) => ({
-      x: p.x * (width - 2 * padding) + padding,
-      y: (1 - p.amplitude) * (height - 2 * padding) + padding,
-    }));
+    // Find the maximum cluster size to normalize heights
+    const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+
+    const points = data.peaks.map((p) => {
+      // Calculate ratio based on absolute count vs max count
+      const selectedCount = p.selectedCount ?? p.sampleCount;
+      const ratio = maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
+      return {
+        x: p.x * (width - 2 * padding) + padding,
+        y: (1 - ratio) * (height - 2 * padding) + padding,
+      };
+    });
 
     let path = `M ${points[0].x} ${points[0].y}`;
 
@@ -55,25 +63,33 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     const rect = svgRef.current.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const normalizedY = (y - padding) / (height - 2 * padding);
-    const newAmplitude = Math.max(0, Math.min(2, 1 - normalizedY));
+    const ratio = Math.max(0, Math.min(1, 1 - normalizedY));
 
-    setData((prevData) => ({
-      ...prevData,
-      peaks: prevData.peaks.map((peak) =>
-        peak.id === draggingPeak
-          ? { ...peak, amplitude: newAmplitude, weight: newAmplitude / peak.originalAmplitude }
-          : peak
-      ),
-    }));
+    setData((prevData) => {
+      const maxSampleCount = Math.max(...prevData.peaks.map((p) => p.sampleCount));
+
+      return {
+        ...prevData,
+        peaks: prevData.peaks.map((peak) => {
+          if (peak.id === draggingPeak) {
+            // Calculate count based on ratio relative to max, but clamp to peak's sampleCount
+            const absoluteCount = Math.round(ratio * maxSampleCount);
+            const newSelectedCount = Math.min(absoluteCount, peak.sampleCount);
+            return { ...peak, selectedCount: newSelectedCount };
+          }
+          return peak;
+        }),
+      };
+    });
   };
 
-  const handleMouseUp = async () => {
+  const finishDrag = async () => {
     if (draggingPeak === null) return;
 
     const peakId = draggingPeak;
     const wasDragged = hasDragged;
-
     const adjustedPeak = data.peaks.find((p) => p.id === draggingPeak);
+
     if (!adjustedPeak) return;
 
     // If it was a click (no drag), trigger the click handler
@@ -83,56 +99,29 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
       return;
     }
 
-    // Otherwise, update the amplitude
+    // Otherwise, update the selectedCount
     try {
+      const selectedCount = adjustedPeak.selectedCount ?? adjustedPeak.sampleCount;
       const updatedData = await apiClient.adjustAmplitudes(datasetId, {
-        adjustments: [{ id: adjustedPeak.id, amplitude: adjustedPeak.amplitude }],
+        adjustments: [{ id: adjustedPeak.id, selectedCount }],
       });
 
       setData(updatedData);
       onDataUpdate(updatedData);
     } catch (err) {
       console.error('Failed to update peak:', err);
-      // TODO: Show user-friendly error message
     }
 
     setDraggingPeak(null);
   };
 
+  const handleMouseUp = async () => {
+    await finishDrag();
+  };
+
   useEffect(() => {
-    const handleGlobalMouseUp = async () => {
-      if (draggingPeak === null) return;
-
-      const peakId = draggingPeak;
-      const wasDragged = hasDragged;
-
-      const adjustedPeak = data.peaks.find((p) => p.id === draggingPeak);
-      if (!adjustedPeak) return;
-
-      // If it was a click (no drag), trigger the click handler
-      if (!wasDragged && onClusterClick) {
-        onClusterClick(peakId);
-        setDraggingPeak(null);
-        return;
-      }
-
-      // Otherwise, update the amplitude
-      try {
-        const updatedData = await apiClient.adjustAmplitudes(datasetId, {
-          adjustments: [{ id: adjustedPeak.id, amplitude: adjustedPeak.amplitude }],
-        });
-
-        setData(updatedData);
-        onDataUpdate(updatedData);
-      } catch (err) {
-        console.error('Failed to update peak:', err);
-      }
-
-      setDraggingPeak(null);
-    };
-
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('mouseup', finishDrag);
+    return () => window.removeEventListener('mouseup', finishDrag);
   }, [draggingPeak, hasDragged, data.peaks, datasetId, onDataUpdate, onClusterClick]);
 
   return (
@@ -155,55 +144,60 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         />
 
         {/* Peak markers */}
-        {data.peaks.map((peak) => {
-          const x = peak.x * (width - 2 * padding) + padding;
-          const y = (1 - peak.amplitude) * (height - 2 * padding) + padding;
-          const isDragging = draggingPeak === peak.id;
-          const isHovered = hoveredPeak === peak.id;
+        {(() => {
+          const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+          return data.peaks.map((peak) => {
+            const selectedCount = peak.selectedCount ?? peak.sampleCount;
+            const ratio = maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
+            const x = peak.x * (width - 2 * padding) + padding;
+            const y = (1 - ratio) * (height - 2 * padding) + padding;
+            const isDragging = draggingPeak === peak.id;
+            const isHovered = hoveredPeak === peak.id;
 
-          return (
-            <g key={peak.id}>
-              <circle
-                cx={x}
-                cy={y}
-                r={isDragging ? 10 : isHovered ? 8 : 6}
-                fill={peak.color}
-                stroke="#ffffff"
-                strokeWidth={2}
-                className="cursor-grab active:cursor-grabbing"
-                onMouseDown={() => handleMouseDown(peak.id)}
-                onMouseEnter={() => setHoveredPeak(peak.id)}
-                onMouseLeave={() => setHoveredPeak(null)}
-              />
+            return (
+              <g key={peak.id}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isDragging ? 10 : isHovered ? 8 : 6}
+                  fill={peak.color}
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                  className="cursor-grab active:cursor-grabbing"
+                  onMouseDown={() => handleMouseDown(peak.id)}
+                  onMouseEnter={() => setHoveredPeak(peak.id)}
+                  onMouseLeave={() => setHoveredPeak(null)}
+                />
 
-              {/* Label */}
-              <text
-                x={x}
-                y={y - 15}
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize={12}
-                className="pointer-events-none select-none"
-              >
-                {peak.label}
-              </text>
-
-              {/* Weight indicator on hover or drag */}
-              {(isHovered || isDragging) && (
+                {/* Label */}
                 <text
                   x={x}
-                  y={y + 25}
+                  y={y - 15}
                   textAnchor="middle"
                   fill="#ffffff"
-                  fontSize={10}
+                  fontSize={12}
                   className="pointer-events-none select-none"
                 >
-                  {(peak.weight * 100).toFixed(0)}%
+                  {peak.label}
                 </text>
-              )}
-            </g>
-          );
-        })}
+
+                {/* Count indicator on hover or drag */}
+                {(isHovered || isDragging) && (
+                  <text
+                    x={x}
+                    y={y + 25}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize={10}
+                    className="pointer-events-none select-none"
+                  >
+                    {selectedCount.toLocaleString()} / {peak.sampleCount.toLocaleString()}
+                  </text>
+                )}
+              </g>
+            );
+          });
+        })()}
       </svg>
     </div>
   );
