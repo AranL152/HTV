@@ -1,26 +1,41 @@
-"""DBSCAN clustering and UMAP 1D projection service."""
+"""K-Means clustering and UMAP 1D projection service."""
 
 import numpy as np
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import KMeans
 from umap import UMAP
 
 
-def cluster_data(embeddings: np.ndarray) -> np.ndarray:
+def cluster_data(embeddings: np.ndarray, n_clusters: int = None) -> np.ndarray:
     """
-    Cluster embeddings using DBSCAN with cosine metric.
+    Cluster embeddings using K-Means.
 
     Args:
         embeddings: numpy array of embeddings (n_samples x embedding_dim)
+        n_clusters: number of clusters (default: auto-determine based on dataset size)
 
     Returns:
         numpy array of cluster labels (n_samples,)
-        Noise points (-1) are reassigned to cluster 0
     """
-    clusterer = DBSCAN(eps=0.5, min_samples=5, metric='cosine')
-    labels = clusterer.fit_predict(embeddings)
+    # Auto-determine number of clusters if not specified
+    if n_clusters is None:
+        n_samples = len(embeddings)
+        if n_samples < 50:
+            n_clusters = min(5, n_samples // 10 + 1)
+        elif n_samples < 200:
+            n_clusters = 8
+        elif n_samples < 500:
+            n_clusters = 12
+        else:
+            n_clusters = 15
 
-    # Reassign noise points (-1) to cluster 0
-    labels[labels == -1] = 0
+    # Ensure we don't have more clusters than samples
+    n_clusters = min(n_clusters, len(embeddings))
+    n_clusters = max(2, n_clusters)  # At least 2 clusters
+
+    print(f"Clustering into {n_clusters} clusters...")
+
+    clusterer = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    labels = clusterer.fit_predict(embeddings)
 
     return labels
 

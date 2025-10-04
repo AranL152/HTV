@@ -7,12 +7,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# Export API keys for direct import
+GEMINI_API_KEY: str = os.getenv('GEMINI_API_KEY', '')
+COHERE_API_KEY: str = os.getenv('COHERE_API_KEY', '')
+
+
 class Config:
     """Application configuration with validation."""
 
     # API Keys
-    GEMINI_API_KEY: str = os.getenv('GEMINI_API_KEY', '')
-    COHERE_API_KEY: str = os.getenv('COHERE_API_KEY', '')
+    GEMINI_API_KEY: str = GEMINI_API_KEY
+    COHERE_API_KEY: str = COHERE_API_KEY
 
     # CORS Settings
     ALLOWED_ORIGINS: list[str] = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
