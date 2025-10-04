@@ -1,8 +1,9 @@
 """Waveform builder with UMAP 1D projection and peak generation."""
 
-from typing import Dict, List
+from typing import Dict
 import numpy as np
 from .clusterer import project_to_1d
+from utils.metrics import calculate_gini_coefficient
 
 
 def build_waveform(
@@ -94,8 +95,8 @@ def build_waveform(
     # Sort peaks by x position for rendering
     peaks.sort(key=lambda p: p["x"])
 
-    # Calculate metrics
-    gini = _calculate_gini(amplitudes)
+    # Calculate metrics using shared utility
+    gini = calculate_gini_coefficient(amplitudes)
     avg_amp = amplitudes.mean()
 
     # Ensure no NaN values in metrics
@@ -115,26 +116,6 @@ def build_waveform(
     }
 
 
-def _calculate_gini(amplitudes: np.ndarray) -> float:
-    """
-    Calculate Gini coefficient for amplitude distribution.
-
-    Args:
-        amplitudes: Array of amplitudes
-
-    Returns:
-        Gini coefficient (0 = perfect equality, 1 = perfect inequality)
-    """
-    sorted_amps = np.sort(amplitudes)
-    n = len(sorted_amps)
-    cumsum = sum((i + 1) * a for i, a in enumerate(sorted_amps))
-    total = sum(sorted_amps)
-
-    if total == 0:
-        return 0.0
-
-    gini = (2 * cumsum) / (n * total) - (n + 1) / n
-    return gini
 
 
 def _generate_color(index: int, total: int) -> str:

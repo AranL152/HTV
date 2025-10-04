@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ClusterPeak, WaveformData } from '@/types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { WaveformData } from '@/types';
+import { apiClient } from '@/lib/api-client';
 
 interface WaveformProps {
   datasetId: string;
@@ -21,10 +20,10 @@ export default function Waveform({ datasetId, initialData, onDataUpdate }: Wavef
   const height = 400;
   const padding = 40;
 
-  const generateSmoothPath = (peaks: ClusterPeak[]): string => {
-    if (peaks.length === 0) return '';
+  const generateSmoothPath = () => {
+    if (data.peaks.length === 0) return '';
 
-    const points = peaks.map((p) => ({
+    const points = data.peaks.map((p) => ({
       x: p.x * (width - 2 * padding) + padding,
       y: (1 - p.amplitude) * (height - 2 * padding) + padding,
     }));
@@ -71,36 +70,44 @@ export default function Waveform({ datasetId, initialData, onDataUpdate }: Wavef
     if (!adjustedPeak) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/adjust/${datasetId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adjustments: [{ id: adjustedPeak.id, amplitude: adjustedPeak.amplitude }],
-        }),
+      const updatedData = await apiClient.adjustAmplitudes(datasetId, {
+        adjustments: [{ id: adjustedPeak.id, amplitude: adjustedPeak.amplitude }],
       });
 
-      if (response.ok) {
-        const updatedData = await response.json();
-        setData(updatedData);
-        onDataUpdate(updatedData);
-      }
+      setData(updatedData);
+      onDataUpdate(updatedData);
     } catch (err) {
       console.error('Failed to update peak:', err);
+      // TODO: Show user-friendly error message
     }
 
     setDraggingPeak(null);
   };
 
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      if (draggingPeak !== null) {
-        handleMouseUp();
+    const handleGlobalMouseUp = async () => {
+      if (draggingPeak === null) return;
+
+      const adjustedPeak = data.peaks.find((p) => p.id === draggingPeak);
+      if (!adjustedPeak) return;
+
+      try {
+        const updatedData = await apiClient.adjustAmplitudes(datasetId, {
+          adjustments: [{ id: adjustedPeak.id, amplitude: adjustedPeak.amplitude }],
+        });
+
+        setData(updatedData);
+        onDataUpdate(updatedData);
+      } catch (err) {
+        console.error('Failed to update peak:', err);
       }
+
+      setDraggingPeak(null);
     };
 
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, [draggingPeak]);
+  }, [draggingPeak, data.peaks, datasetId, onDataUpdate]);
 
   return (
     <div className="w-full">
@@ -115,7 +122,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate }: Wavef
       >
         {/* Smooth waveform path */}
         <path
-          d={generateSmoothPath(data.peaks)}
+          d={generateSmoothPath()}
           stroke="#ffffff"
           strokeWidth={2}
           fill="none"

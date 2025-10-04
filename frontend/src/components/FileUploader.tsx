@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { apiClient } from '@/lib/api-client';
 
 export default function FileUploader() {
   const [file, setFile] = useState<File | null>(null);
@@ -50,20 +49,7 @@ export default function FileUploader() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Upload failed');
-      }
-
-      const data = await response.json();
+      const data = await apiClient.uploadFile(file);
       router.push(`/visualize?id=${data.dataset_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');

@@ -7,8 +7,7 @@ import Waveform from '@/components/Waveform';
 import MetricsPanel from '@/components/MetricsPanel';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { WaveformData } from '@/types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { apiClient } from '@/lib/api-client';
 
 function VisualizeContent() {
   const searchParams = useSearchParams();
@@ -26,11 +25,7 @@ function VisualizeContent() {
 
     const fetchWaveform = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/waveform/${datasetId}`);
-        if (!response.ok) {
-          throw new Error('Failed to load waveform data');
-        }
-        const waveformData = await response.json();
+        const waveformData = await apiClient.getWaveform(datasetId);
         setData(waveformData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');

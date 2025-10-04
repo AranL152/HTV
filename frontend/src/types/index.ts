@@ -23,3 +23,28 @@ export interface WaveformData {
     avgAmplitude: number;
   };
 }
+
+// API types
+export interface AdjustmentRequest {
+  adjustments: Array<{
+    id: number;
+    amplitude: number;
+  }>;
+}
+
+export interface UploadResponse {
+  dataset_id: string;
+  total_points: number;
+  num_clusters: number;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public details?: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}

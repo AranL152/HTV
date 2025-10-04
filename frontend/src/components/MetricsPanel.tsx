@@ -1,21 +1,17 @@
 'use client';
 
 import { WaveformData } from '@/types';
+import { apiClient } from '@/lib/api-client';
 
 interface MetricsPanelProps {
   data: WaveformData;
   datasetId: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
   const handleExport = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/export/${datasetId}`);
-      if (!response.ok) throw new Error('Export failed');
-
-      const blob = await response.blob();
+      const blob = await apiClient.exportDataset(datasetId);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -26,6 +22,7 @@ export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
       document.body.removeChild(a);
     } catch (err) {
       console.error('Export failed:', err);
+      // TODO: Show user-friendly error toast
     }
   };
 

@@ -1,17 +1,14 @@
 """Gemini cluster analysis service for generating cluster descriptions."""
 
-import os
 from typing import Dict
 import numpy as np
 import pandas as pd
 import google.generativeai as genai
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+from config import Config
 
 # Configure Gemini
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+genai.configure(api_key=Config.GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
 
@@ -55,9 +52,10 @@ Generate a descriptive label for this cluster in 3-5 words. Focus on the key cha
         try:
             response = model.generate_content(prompt)
             description = response.text.strip()
-        except Exception as e:
+        except Exception:
             # Fallback label if Gemini fails
             description = f"Cluster {cluster_id}"
+            # Note: Using fallback instead of failing ensures graceful degradation
 
         descriptions[int(cluster_id)] = description
 
