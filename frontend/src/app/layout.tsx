@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Level - Dataset Bias Correction",
-  description: "Visualize and rebalance your datasets with interactive waveform analysis",
+  description: "Visualize and rebalance your datasets",
 };
 
 export default function RootLayout({

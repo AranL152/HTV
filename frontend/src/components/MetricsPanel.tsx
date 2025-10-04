@@ -115,7 +115,7 @@ export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
                     />
                     <span className="flex-1 truncate min-w-0">{peak.label}</span>
                     <span className="text-white/60 text-xs sm:text-sm flex-shrink-0">
-                      {peak.sampleCount} ({(peak.weight * 100).toFixed(0)}%)
+                      {peak.sampleCount.toLocaleString()} ({(peak.selectedCount ?? peak.sampleCount).toLocaleString()} selected)
                     </span>
                   </div>
                 ))}

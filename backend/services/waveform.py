@@ -9,7 +9,8 @@ from utils.metrics import calculate_gini_coefficient
 def build_waveform(
     embeddings: np.ndarray,
     clusters: np.ndarray,
-    descriptions: Dict[int, str]
+    descriptions: Dict[int, str],
+    df=None
 ) -> dict:
     """
     Build waveform data structure from embeddings and clusters.
@@ -26,21 +27,19 @@ def build_waveform(
                 {
                     "id": cluster_id,
                     "x": position (0-1),
-                    "amplitude": normalized_size,
-                    "original_amplitude": normalized_size,
+                    "selectedCount": count (initially equals sampleCount),
                     "label": description,
-                    "weight": 1.0,
                     "color": hex_color,
-                    "sample_count": count,
+                    "sampleCount": count,
                     "samples": []
                 },
                 ...
             ],
-            "total_points": total_count,
+            "totalPoints": total_count,
             "metrics": {
-                "gini_coefficient": float,
-                "flatness_score": float,
-                "avg_amplitude": float
+                "giniCoefficient": float,
+                "flatnessScore": float,
+                "avgAmplitude": float
             }
         }
     """
@@ -62,13 +61,6 @@ def build_waveform(
         for cluster_id in unique_clusters
     ])
 
-    # Normalize sizes to amplitudes (0-1 range based on max cluster size)
-    max_size = float(cluster_sizes.max())
-    if max_size == 0:
-        amplitudes = np.ones(len(cluster_sizes))
-    else:
-        amplitudes = cluster_sizes / max_size
-
     # Generate colors (simple rainbow gradient)
     colors = [_generate_color(i, n_clusters) for i in range(n_clusters)]
 
@@ -77,36 +69,52 @@ def build_waveform(
     for i, cluster_id in enumerate(unique_clusters):
         # Handle potential NaN values
         x_val = float(x_positions[i]) if not np.isnan(x_positions[i]) else 0.5
-        amp_val = float(amplitudes[i]) if not np.isnan(amplitudes[i]) else 1.0
+        sample_count = int(cluster_sizes[i])
+
+        # Get sample data for this cluster
+        samples = []
+        if df is not None:
+            cluster_mask = clusters == cluster_id
+            cluster_rows = df[cluster_mask]
+            sample_size = min(5, len(cluster_rows))
+            sample_rows = cluster_rows.sample(n=sample_size, random_state=42)
+            # Convert each row to a readable string format
+            samples = [
+                ", ".join([f"{col}: {val}" for col, val in row.items()])
+                for _, row in sample_rows.iterrows()
+            ]
 
         peak = {
             "id": int(cluster_id),
             "x": x_val,
-            "amplitude": amp_val,
-            "originalAmplitude": amp_val,
+            "selectedCount": sample_count,  # Initially all points selected
             "label": descriptions.get(int(cluster_id), f"Cluster {cluster_id}"),
-            "weight": 1.0,
             "color": colors[i],
-            "sampleCount": int(cluster_sizes[i]),
-            "samples": []
+            "sampleCount": sample_count,
+            "samples": samples
         }
         peaks.append(peak)
 
     # Sort peaks by x position for rendering
     peaks.sort(key=lambda p: p["x"])
 
-    # Calculate metrics using shared utility
-    gini = calculate_gini_coefficient(amplitudes)
-    avg_amp = amplitudes.mean()
+    # Calculate metrics based on selection ratios
+    selection_ratios = np.array([
+        peak["selectedCount"] / peak["sampleCount"] if peak["sampleCount"] > 0 else 1.0
+        for peak in peaks
+    ])
+
+    gini = calculate_gini_coefficient(selection_ratios)
+    avg_ratio = selection_ratios.mean()
 
     # Ensure no NaN values in metrics
     gini_val = float(gini) if not np.isnan(gini) else 0.0
-    avg_val = float(avg_amp) if not np.isnan(avg_amp) else 1.0
+    avg_val = float(avg_ratio) if not np.isnan(avg_ratio) else 1.0
 
     metrics = {
         "giniCoefficient": gini_val,
         "flatnessScore": 1.0 - gini_val,
-        "avgAmplitude": avg_val
+        "avgAmplitude": avg_val  # Average selection ratio across clusters
     }
 
     return {
@@ -114,8 +122,6 @@ def build_waveform(
         "totalPoints": int(len(clusters)),
         "metrics": metrics
     }
-
-
 
 
 def _generate_color(index: int, total: int) -> str:
