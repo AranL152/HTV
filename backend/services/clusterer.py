@@ -37,11 +37,26 @@ def project_to_1d(cluster_centers: np.ndarray) -> np.ndarray:
     Returns:
         numpy array of normalized 1D positions (n_clusters,) in range [0, 1]
     """
+    # Handle single cluster case
+    if len(cluster_centers) == 1:
+        return np.array([0.5])
+
+    # Handle two cluster case (UMAP needs at least 2 neighbors)
+    if len(cluster_centers) == 2:
+        return np.array([0.0, 1.0])
+
     umap_reducer = UMAP(n_components=1, random_state=42)
     positions = umap_reducer.fit_transform(cluster_centers)
 
     # Normalize to 0-1 range
     positions_flat = positions.flatten()
-    normalized = (positions_flat - positions_flat.min()) / (positions_flat.max() - positions_flat.min())
+    min_pos = positions_flat.min()
+    max_pos = positions_flat.max()
+
+    # Handle case where all positions are the same
+    if max_pos == min_pos:
+        return np.linspace(0, 1, len(cluster_centers))
+
+    normalized = (positions_flat - min_pos) / (max_pos - min_pos)
 
     return normalized

@@ -63,7 +63,10 @@ def build_waveform(
 
     # Normalize sizes to amplitudes (0-1 range based on max cluster size)
     max_size = cluster_sizes.max()
-    amplitudes = cluster_sizes / max_size
+    if max_size == 0:
+        amplitudes = np.ones(len(cluster_sizes))
+    else:
+        amplitudes = cluster_sizes / max_size
 
     # Generate colors (simple rainbow gradient)
     colors = [_generate_color(i, n_clusters) for i in range(n_clusters)]
@@ -71,15 +74,19 @@ def build_waveform(
     # Build peaks array
     peaks = []
     for i, cluster_id in enumerate(unique_clusters):
+        # Handle potential NaN values
+        x_val = float(x_positions[i]) if not np.isnan(x_positions[i]) else 0.5
+        amp_val = float(amplitudes[i]) if not np.isnan(amplitudes[i]) else 1.0
+
         peak = {
             "id": int(cluster_id),
-            "x": float(x_positions[i]),
-            "amplitude": float(amplitudes[i]),
-            "original_amplitude": float(amplitudes[i]),
+            "x": x_val,
+            "amplitude": amp_val,
+            "originalAmplitude": amp_val,
             "label": descriptions.get(int(cluster_id), f"Cluster {cluster_id}"),
             "weight": 1.0,
             "color": colors[i],
-            "sample_count": int(cluster_sizes[i]),
+            "sampleCount": int(cluster_sizes[i]),
             "samples": []
         }
         peaks.append(peak)
@@ -89,15 +96,21 @@ def build_waveform(
 
     # Calculate metrics
     gini = _calculate_gini(amplitudes)
+    avg_amp = amplitudes.mean()
+
+    # Ensure no NaN values in metrics
+    gini_val = float(gini) if not np.isnan(gini) else 0.0
+    avg_val = float(avg_amp) if not np.isnan(avg_amp) else 1.0
+
     metrics = {
-        "gini_coefficient": float(gini),
-        "flatness_score": float(1 - gini),
-        "avg_amplitude": float(amplitudes.mean())
+        "giniCoefficient": gini_val,
+        "flatnessScore": 1.0 - gini_val,
+        "avgAmplitude": avg_val
     }
 
     return {
         "peaks": peaks,
-        "total_points": int(len(clusters)),
+        "totalPoints": int(len(clusters)),
         "metrics": metrics
     }
 

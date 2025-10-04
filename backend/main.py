@@ -77,7 +77,7 @@ async def upload_file(file: UploadFile = File(...)):
 
         return {
             "dataset_id": dataset_id,
-            "total_points": waveform_data["total_points"],
+            "total_points": waveform_data["totalPoints"],
             "num_clusters": len(waveform_data["peaks"])
         }
 
@@ -115,7 +115,7 @@ async def adjust_weights(dataset_id: str, request: AdjustmentRequest):
         for peak in waveform['peaks']:
             if peak['id'] == cluster_id:
                 peak['amplitude'] = new_amplitude
-                peak['weight'] = new_amplitude / peak['original_amplitude']
+                peak['weight'] = new_amplitude / peak['originalAmplitude']
                 break
 
     # Recalculate metrics
@@ -123,9 +123,9 @@ async def adjust_weights(dataset_id: str, request: AdjustmentRequest):
     gini = _calculate_gini_coefficient(amplitudes)
 
     waveform['metrics'] = {
-        "gini_coefficient": float(gini),
-        "flatness_score": float(1 - gini),
-        "avg_amplitude": float(sum(amplitudes) / len(amplitudes))
+        "giniCoefficient": float(gini),
+        "flatnessScore": float(1 - gini),
+        "avgAmplitude": float(sum(amplitudes) / len(amplitudes))
     }
 
     return waveform
