@@ -11,16 +11,10 @@ export default function Home() {
           </p>
           <p className="text-sm text-white/40 max-w-md mx-auto">
             Upload a CSV dataset to analyze cluster distribution and adjust bias
-            with an interactive waveform visualization
           </p>
         </div>
 
         <FileUploader />
-
-        <div className="text-xs text-white/30 text-center max-w-md">
-          Your dataset is embedded using Snowflake Arctic, clustered with DBSCAN,
-          and analyzed by Gemini AI to generate human-readable descriptions
-        </div>
       </main>
     </div>
   );

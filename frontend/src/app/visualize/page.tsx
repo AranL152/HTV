@@ -83,9 +83,6 @@ function VisualizeContent() {
               onDataUpdate={setData}
               onClusterClick={setSelectedClusterId}
             />
-            <div className="text-sm text-white/40 text-center">
-              Drag peaks vertically to adjust cluster representation • 0% = exclude, 100% = original, 200% = 2x weight
-            </div>
           </div>
 
           {/* Metrics Panel */}
