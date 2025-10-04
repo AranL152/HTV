@@ -98,13 +98,9 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
   };
 
   return (
-    <div className="bg-black/40 border border-white/10 rounded-lg flex flex-col h-[500px]">
-      <div className="p-4 border-b border-white/10 flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Ask About Your Dataset</h3>
-          <p className="text-sm text-white/60">
-          </p>
-        </div>
+    <div className="flex flex-col h-full max-h-[calc(100vh-12rem)]">
+      <div className="p-3 sm:p-4 border-b border-[#333] flex items-center justify-between">
+        <h3 className="text-base sm:text-lg font-semibold">Ask About Your Dataset</h3>
         {messages.length > 0 && (
           <button
             onClick={handleClearHistory}
@@ -116,7 +112,7 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
         {messages.length === 0 && (
           <div className="text-center text-white/40 mt-8">
             <p>Start a conversation about your dataset</p>
@@ -134,14 +130,14 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
             }`}
           >
             <div
-              className={`max-w-[80%] rounded-lg p-3 ${
+              className={`max-w-[85%] rounded-lg p-2.5 sm:p-3 ${
                 message.role === 'user'
                   ? 'bg-blue-600 text-white'
                   : 'bg-white/10 text-white'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              <p className="text-xs opacity-60 mt-1">
+              <p className="text-xs sm:text-sm whitespace-pre-wrap">{message.content}</p>
+              <p className="text-[10px] sm:text-xs opacity-60 mt-1">
                 {new Date(message.timestamp).toLocaleTimeString()}
               </p>
             </div>
@@ -163,7 +159,7 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-white/10">
+      <form onSubmit={handleSubmit} className="p-3 sm:p-4 border-t border-[#333]">
         <div className="flex space-x-2">
           <input
             type="text"
@@ -171,12 +167,12 @@ export default function ChatBox({ datasetId }: ChatBoxProps) {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about your dataset..."
             disabled={loading}
-            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:border-white/30 disabled:opacity-50"
+            className="flex-1 bg-white/5 border border-[#333] rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-white placeholder-white/40 focus:outline-none focus:border-white/30 disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-white/10 disabled:text-white/40 rounded-lg font-medium transition-colors"
+            className="px-4 sm:px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-white/10 disabled:text-white/40 rounded-lg font-medium transition-colors text-sm sm:text-base"
           >
             Send
           </button>
