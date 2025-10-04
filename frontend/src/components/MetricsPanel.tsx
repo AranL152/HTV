@@ -31,29 +31,6 @@ export default function MetricsPanel({ data, datasetId, onSuggestionsReceived }:
     const storageKey = `metrics-tab-${datasetId}`;
     localStorage.setItem(storageKey, tab);
   };
-  const handleApplySuggestions = async () => {
-    // Check if we have suggestions
-    const hasSuggestions = data.peaks.some(p => p.suggestedCount !== undefined);
-    if (!hasSuggestions) return;
-
-    try {
-      const adjustments = data.peaks
-        .filter(p => p.suggestedCount !== undefined)
-        .map(p => ({
-          id: p.id,
-          selectedCount: p.suggestedCount!,
-        }));
-
-      const updatedData = await apiClient.adjustAmplitudes(datasetId, { adjustments });
-
-      if (onSuggestionsReceived) {
-        onSuggestionsReceived(updatedData);
-      }
-    } catch (err) {
-      console.error('Failed to apply suggestions:', err);
-    }
-  };
-
   const handleExport = async () => {
     try {
       const blob = await apiClient.exportDataset(datasetId);
@@ -145,22 +122,6 @@ export default function MetricsPanel({ data, datasetId, onSuggestionsReceived }:
                 ))}
               </div>
             </div>
-
-            {/* AI Suggestions Section */}
-            {data.strategy && (
-              <div className="pt-3 lg:pt-4 border-t border-[#333] space-y-3">
-                <div className="bg-white/5 rounded p-3 space-y-2">
-                  <p className="text-xs text-white/60">AI Balance Strategy:</p>
-                  <p className="text-xs text-white/90">{data.strategy}</p>
-                  <button
-                    onClick={handleApplySuggestions}
-                    className="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm font-medium hover:bg-blue-700 transition-all"
-                  >
-                    Apply AI Suggestions
-                  </button>
-                </div>
-              </div>
-            )}
 
             <button
               onClick={handleExport}
