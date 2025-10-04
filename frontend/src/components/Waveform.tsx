@@ -8,12 +8,14 @@ interface WaveformProps {
   datasetId: string;
   initialData: WaveformData;
   onDataUpdate: (data: WaveformData) => void;
+  onClusterClick?: (peakId: number) => void;
 }
 
-export default function Waveform({ datasetId, initialData, onDataUpdate }: WaveformProps) {
+export default function Waveform({ datasetId, initialData, onDataUpdate, onClusterClick }: WaveformProps) {
   const [data, setData] = useState<WaveformData>(initialData);
   const [draggingPeak, setDraggingPeak] = useState<number | null>(null);
   const [hoveredPeak, setHoveredPeak] = useState<number | null>(null);
+  const [hasDragged, setHasDragged] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const width = 1000;
@@ -43,11 +45,13 @@ export default function Waveform({ datasetId, initialData, onDataUpdate }: Wavef
 
   const handleMouseDown = (peakId: number) => {
     setDraggingPeak(peakId);
+    setHasDragged(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (draggingPeak === null || !svgRef.current) return;
 
+    setHasDragged(true);
     const rect = svgRef.current.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const normalizedY = (y - padding) / (height - 2 * padding);
@@ -66,9 +70,20 @@ export default function Waveform({ datasetId, initialData, onDataUpdate }: Wavef
   const handleMouseUp = async () => {
     if (draggingPeak === null) return;
 
+    const peakId = draggingPeak;
+    const wasDragged = hasDragged;
+
     const adjustedPeak = data.peaks.find((p) => p.id === draggingPeak);
     if (!adjustedPeak) return;
 
+    // If it was a click (no drag), trigger the click handler
+    if (!wasDragged && onClusterClick) {
+      onClusterClick(peakId);
+      setDraggingPeak(null);
+      return;
+    }
+
+    // Otherwise, update the amplitude
     try {
       const updatedData = await apiClient.adjustAmplitudes(datasetId, {
         adjustments: [{ id: adjustedPeak.id, amplitude: adjustedPeak.amplitude }],
@@ -88,9 +103,20 @@ export default function Waveform({ datasetId, initialData, onDataUpdate }: Wavef
     const handleGlobalMouseUp = async () => {
       if (draggingPeak === null) return;
 
+      const peakId = draggingPeak;
+      const wasDragged = hasDragged;
+
       const adjustedPeak = data.peaks.find((p) => p.id === draggingPeak);
       if (!adjustedPeak) return;
 
+      // If it was a click (no drag), trigger the click handler
+      if (!wasDragged && onClusterClick) {
+        onClusterClick(peakId);
+        setDraggingPeak(null);
+        return;
+      }
+
+      // Otherwise, update the amplitude
       try {
         const updatedData = await apiClient.adjustAmplitudes(datasetId, {
           adjustments: [{ id: adjustedPeak.id, amplitude: adjustedPeak.amplitude }],
@@ -107,7 +133,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate }: Wavef
 
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, [draggingPeak, data.peaks, datasetId, onDataUpdate]);
+  }, [draggingPeak, hasDragged, data.peaks, datasetId, onDataUpdate, onClusterClick]);
 
   return (
     <div className="w-full">

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Waveform from '@/components/Waveform';
 import MetricsPanel from '@/components/MetricsPanel';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import ClusterDetailModal from '@/components/ClusterDetailModal';
 import { WaveformData } from '@/types';
 import { apiClient } from '@/lib/api-client';
 
@@ -15,6 +16,7 @@ function VisualizeContent() {
   const [data, setData] = useState<WaveformData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!datasetId) {
@@ -73,19 +75,30 @@ function VisualizeContent() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
+          {/* Waveform */}
           <div className="space-y-4">
             <Waveform
               datasetId={datasetId}
               initialData={data}
               onDataUpdate={setData}
+              onClusterClick={setSelectedClusterId}
             />
             <div className="text-sm text-white/40 text-center">
               Drag peaks vertically to adjust cluster representation • 0% = exclude, 100% = original, 200% = 2x weight
             </div>
           </div>
 
-          <MetricsPanel data={data} datasetId={datasetId} />
+          {/* Metrics Panel */}
+          <MetricsPanel
+            data={data}
+            datasetId={datasetId}
+          />
         </div>
+
+        <ClusterDetailModal
+          cluster={data.peaks.find(p => p.id === selectedClusterId) || null}
+          onClose={() => setSelectedClusterId(null)}
+        />
       </div>
     </div>
   );

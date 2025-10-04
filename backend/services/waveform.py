@@ -9,7 +9,8 @@ from utils.metrics import calculate_gini_coefficient
 def build_waveform(
     embeddings: np.ndarray,
     clusters: np.ndarray,
-    descriptions: Dict[int, str]
+    descriptions: Dict[int, str],
+    df=None
 ) -> dict:
     """
     Build waveform data structure from embeddings and clusters.
@@ -79,6 +80,19 @@ def build_waveform(
         x_val = float(x_positions[i]) if not np.isnan(x_positions[i]) else 0.5
         amp_val = float(amplitudes[i]) if not np.isnan(amplitudes[i]) else 1.0
 
+        # Get sample data for this cluster
+        samples = []
+        if df is not None:
+            cluster_mask = clusters == cluster_id
+            cluster_rows = df[cluster_mask]
+            sample_size = min(5, len(cluster_rows))
+            sample_rows = cluster_rows.sample(n=sample_size, random_state=42)
+            # Convert each row to a readable string format
+            samples = [
+                ", ".join([f"{col}: {val}" for col, val in row.items()])
+                for _, row in sample_rows.iterrows()
+            ]
+
         peak = {
             "id": int(cluster_id),
             "x": x_val,
@@ -88,7 +102,7 @@ def build_waveform(
             "weight": 1.0,
             "color": colors[i],
             "sampleCount": int(cluster_sizes[i]),
-            "samples": []
+            "samples": samples
         }
         peaks.append(peak)
 

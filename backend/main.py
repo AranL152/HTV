@@ -80,7 +80,7 @@ async def upload_file(file: UploadFile = File(...)):
         descriptions = analyze_clusters(df, clusters)
 
         print("Building waveform...")
-        waveform_data = build_waveform(embeddings, clusters, descriptions)
+        waveform_data = build_waveform(embeddings, clusters, descriptions, df)
 
         # Store everything
         datasets[dataset_id] = {

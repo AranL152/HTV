@@ -77,7 +77,7 @@ export const apiClient = {
     const response = await fetchWithTimeout(`${API_URL}/api/upload`, {
       method: 'POST',
       body: formData,
-    }, 60000); // 60s timeout for file upload
+    }, 180000);
 
     return handleResponse<UploadResponse>(response);
   },

@@ -20,13 +20,13 @@ def cluster_data(embeddings: np.ndarray, n_clusters: int = None) -> np.ndarray:
     if n_clusters is None:
         n_samples = len(embeddings)
         if n_samples < 50:
-            n_clusters = min(5, n_samples // 10 + 1)
+            n_clusters = min(3, n_samples // 10 + 1)
         elif n_samples < 200:
-            n_clusters = 8
+            n_clusters = 4
         elif n_samples < 500:
-            n_clusters = 12
+            n_clusters = 5
         else:
-            n_clusters = 15
+            n_clusters = 7  # Max 7 clusters
 
     # Ensure we don't have more clusters than samples
     n_clusters = min(n_clusters, len(embeddings))

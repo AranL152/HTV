@@ -57,15 +57,20 @@ export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
 
       <div className="pt-4 border-t border-[#333]">
         <h3 className="text-sm font-semibold mb-3">Cluster Breakdown</h3>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-hide">
           {data.peaks.map((peak) => (
             <div key={peak.id} className="flex items-center gap-2 text-sm">
+              {/* Color dot */}
               <div
-                className="w-3 h-3 rounded-full"
+                className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: peak.color }}
               />
+
+              {/* Label */}
               <span className="flex-1 truncate">{peak.label}</span>
-              <span className="text-white/60">
+
+              {/* Sample count */}
+              <span className="text-white/60 text-xs">
                 {peak.sampleCount} ({(peak.weight * 100).toFixed(0)}%)
               </span>
             </div>
