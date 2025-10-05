@@ -105,6 +105,7 @@ export default function MetricsPanel({ data, datasetId, onSuggestionsReceived, m
                   <MetricRow
                     label="Avg Amplitude"
                     value={data.metrics.avgAmplitude.toFixed(3)}
+                    subtitle="Average selection ratio across clusters"
                   />
                 </>
               ) : (
@@ -123,11 +124,6 @@ export default function MetricsPanel({ data, datasetId, onSuggestionsReceived, m
                     label="Min Weight"
                     value={Math.min(...data.peaks.map(p => p.weight ?? 1.0)).toFixed(2)}
                     subtitle="Lowest cluster weight"
-                  />
-                  <MetricRow
-                    label="Weight Range"
-                    value={(Math.max(...data.peaks.map(p => p.weight ?? 1.0)) - Math.min(...data.peaks.map(p => p.weight ?? 1.0))).toFixed(2)}
-                    subtitle="Difference between max and min"
                   />
                 </>
               )}
