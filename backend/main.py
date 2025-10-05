@@ -6,7 +6,6 @@ from typing import Dict, List
 import pandas as pd
 import io
 import uuid
-import google.generativeai as genai
 import random
 
 from config import Config
@@ -15,9 +14,7 @@ from services.clusterer import cluster_data
 from services.analyzer import analyze_clusters
 from services.waveform import build_waveform
 from utils.metrics import calculate_gini_coefficient
-
-# Configure Gemini
-genai.configure(api_key=Config.GEMINI_API_KEY)
+from llm import suggest_balance, detect_balance_request, generate_chat_response
 
 app = FastAPI(title="Level API", version="1.0.0")
 
@@ -47,6 +44,11 @@ class AdjustmentRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
+
+
+class ChatResponse(BaseModel):
+    response: str
+    suggestions: dict | None = None  # Optional waveform suggestions
 
 
 @app.post("/api/upload")
@@ -91,12 +93,36 @@ async def upload_file(file: UploadFile = File(...)):
         print("Building waveform...")
         waveform_data = build_waveform(embeddings, clusters, descriptions, df)
 
+        # Generate AI suggestions automatically
+        print("Generating AI balance suggestions...")
+        suggestions = await suggest_balance(df, waveform_data)
+
+        # Apply suggestions to waveform
+        for peak in waveform_data['peaks']:
+            suggestion = next(
+                (s for s in suggestions['suggestions'] if s['id'] == peak['id']),
+                None
+            )
+            if suggestion:
+                peak['suggestedCount'] = suggestion['suggestedCount']
+                peak['reasoning'] = suggestion.get('reasoning', '')
+
+        waveform_data['strategy'] = suggestions.get('overall_strategy', '')
+
+        # Create initial chat message
+        initial_message = {
+            'role': 'assistant',
+            'content': f"I've analyzed your dataset and found {len(waveform_data['peaks'])} clusters. {suggestions.get('overall_strategy', '')}",
+            'timestamp': pd.Timestamp.now().isoformat()
+        }
+
         # Store everything
         datasets[dataset_id] = {
             'df': df,
             'embeddings': embeddings,
             'clusters': clusters,
-            'waveform': waveform_data
+            'waveform': waveform_data,
+            'chat_history': [initial_message]
         }
 
         return {
@@ -228,64 +254,157 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         dataset_info = datasets[dataset_id]
         df = dataset_info['df']
         waveform = dataset_info['waveform']
-        
-        # Build context about the dataset
-        context_parts = [
-            f"Dataset Overview:",
-            f"- Total data points: {len(df)}",
-            f"- Number of clusters: {len(waveform['peaks'])}",
-            f"- Columns: {', '.join(df.columns.tolist())}",
-            f"\nDataset sample (first 5 rows):",
-            df.head().to_string(),
-            f"\n\nCluster Information:"
-        ]
-        
-        # Add cluster details
-        for peak in waveform['peaks']:
-            selection_ratio = peak['selectedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
-            context_parts.append(
-                f"\nCluster {peak['id']}:"
-                f"\n  - Label: {peak['label']}"
-                f"\n  - Sample count: {peak['sampleCount']}"
-                f"\n  - Selected count: {peak['selectedCount']} ({selection_ratio:.1%})"
-                f"\n  - Position: {peak['x']:.2%} along data distribution"
-                f"\n  - Sample examples: {', '.join(peak['samples'][:3])}"
-            )
-        
-        # Add metrics
-        metrics = waveform['metrics']
-        context_parts.append(
-            f"\n\nCurrent Metrics:"
-            f"\n  - Gini Coefficient: {metrics['giniCoefficient']:.3f}"
-            f"\n  - Flatness Score: {metrics['flatnessScore']:.3f}"
-            f"\n  - Average Amplitude: {metrics['avgAmplitude']:.3f}"
-        )
-        
-        context = "\n".join(context_parts)
-        
-        # Create prompt for Gemini
-        prompt = f"""You are an AI assistant helping users understand their dataset clustering analysis.
 
-Context about the current dataset:
-{context}
-
-User Question: {request.message}
-
-Please provide a helpful, concise answer based on the dataset information provided. If the question is about a specific cluster, reference the cluster details above. If asking for recommendations, consider the current metrics and cluster distribution."""
-
-        # Call Gemini API
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
-        response = model.generate_content(prompt)
-        
-        return {
-            "response": response.text
+        # Store user message
+        user_message = {
+            'role': 'user',
+            'content': request.message,
+            'timestamp': pd.Timestamp.now().isoformat()
         }
-        
+        datasets[dataset_id]['chat_history'].append(user_message)
+
+        # Generate chat response
+        response_text = await generate_chat_response(df, waveform, request.message)
+
+        # Check if user is asking for balance adjustments
+        should_generate_suggestions = await detect_balance_request(request.message)
+
+        # If user wants balance adjustments, generate new suggestions
+        new_suggestions = None
+        if should_generate_suggestions:
+            try:
+                # Get current suggestions (context-aware based on user request)
+                suggestions_data = await suggest_balance(df, waveform)
+
+                # Build waveform with new suggestions
+                suggested_waveform = {
+                    'peaks': [],
+                    'totalPoints': waveform['totalPoints'],
+                    'metrics': {},
+                    'strategy': suggestions_data.get('overall_strategy', '')
+                }
+
+                for peak in waveform['peaks']:
+                    suggested_peak = peak.copy()
+                    suggestion = next(
+                        (s for s in suggestions_data['suggestions'] if s['id'] == peak['id']),
+                        None
+                    )
+                    if suggestion:
+                        suggested_peak['suggestedCount'] = min(suggestion['suggestedCount'], peak['sampleCount'])
+                        suggested_peak['reasoning'] = suggestion.get('reasoning', '')
+                    suggested_waveform['peaks'].append(suggested_peak)
+
+                # Calculate metrics
+                suggestion_ratios = [
+                    peak['suggestedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
+                    for peak in suggested_waveform['peaks']
+                ]
+                gini = calculate_gini_coefficient(suggestion_ratios)
+
+                suggested_waveform['metrics'] = {
+                    "giniCoefficient": float(gini),
+                    "flatnessScore": float(1 - gini),
+                    "avgAmplitude": float(sum(suggestion_ratios) / len(suggestion_ratios))
+                }
+
+                new_suggestions = suggested_waveform
+            except Exception as e:
+                print(f"Failed to generate suggestions: {str(e)}")
+                # Continue without suggestions if generation fails
+
+        # Store assistant message
+        assistant_message = {
+            'role': 'assistant',
+            'content': response_text,
+            'timestamp': pd.Timestamp.now().isoformat()
+        }
+        datasets[dataset_id]['chat_history'].append(assistant_message)
+
+        return ChatResponse(
+            response=response_text,
+            suggestions=new_suggestions
+        )
+
     except Exception as e:
         import traceback
         print(f"Chat error: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+
+@app.post("/api/suggest-balance/{dataset_id}")
+async def suggest_balance_endpoint(dataset_id: str):
+    """Use Gemini to suggest optimal cluster balance for the dataset."""
+    if dataset_id not in datasets:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    try:
+        dataset_info = datasets[dataset_id]
+        df = dataset_info['df']
+        waveform = dataset_info['waveform']
+
+        # Get suggestions
+        suggestions_data = await suggest_balance(df, waveform)
+
+        # Apply suggestions to create suggested waveform
+        suggested_waveform = {
+            'peaks': [],
+            'totalPoints': waveform['totalPoints'],
+            'metrics': {},
+            'strategy': suggestions_data.get('overall_strategy', 'AI-suggested balance')
+        }
+
+        # Create suggested peaks
+        for peak in waveform['peaks']:
+            suggested_peak = peak.copy()
+
+            # Find suggestion for this cluster
+            suggestion = next(
+                (s for s in suggestions_data['suggestions'] if s['id'] == peak['id']),
+                None
+            )
+
+            if suggestion:
+                suggested_count = min(suggestion['suggestedCount'], peak['sampleCount'])
+                suggested_count = max(0, suggested_count)
+                suggested_peak['suggestedCount'] = suggested_count
+                suggested_peak['reasoning'] = suggestion.get('reasoning', '')
+            else:
+                suggested_peak['suggestedCount'] = peak['selectedCount']
+                suggested_peak['reasoning'] = 'No change suggested'
+
+            suggested_waveform['peaks'].append(suggested_peak)
+
+        # Calculate metrics for suggested distribution
+        suggestion_ratios = [
+            peak['suggestedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
+            for peak in suggested_waveform['peaks']
+        ]
+        gini = calculate_gini_coefficient(suggestion_ratios)
+
+        suggested_waveform['metrics'] = {
+            "giniCoefficient": float(gini),
+            "flatnessScore": float(1 - gini),
+            "avgAmplitude": float(sum(suggestion_ratios) / len(suggestion_ratios))
+        }
+
+        return suggested_waveform
+
+    except Exception as e:
+        import traceback
+        print(f"Suggest balance error: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Suggestion failed: {str(e)}")
+
+
+@app.get("/api/chat-history/{dataset_id}")
+async def get_chat_history(dataset_id: str):
+    """Get chat history for a dataset."""
+    if dataset_id not in datasets:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    return {"messages": datasets[dataset_id].get('chat_history', [])}
 
 
 if __name__ == "__main__":

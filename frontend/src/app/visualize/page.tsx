@@ -58,23 +58,17 @@ function VisualizeContent() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="max-w-full mx-auto space-y-6 lg:space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Dataset Visualization</h1>
-            <p className="text-white/60 mt-2 text-sm sm:text-base">
-              Drag peaks up or down to adjust cluster weights
-            </p>
-          </div>
+      <div className="max-w-full mx-auto space-y-4">
+        <div className="flex justify-end">
           <Link
             href="/"
-            className="text-white/60 hover:text-white transition-colors text-sm sm:text-base"
+            className="text-white/60 hover:text-white transition-colors text-sm"
           >
             ← New dataset
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
           {/* Waveform */}
           <div className="space-y-4">
             <Waveform
@@ -89,6 +83,7 @@ function VisualizeContent() {
           <MetricsPanel
             data={data}
             datasetId={datasetId}
+            onSuggestionsReceived={setData}
           />
         </div>
 

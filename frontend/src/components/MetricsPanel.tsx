@@ -8,11 +8,12 @@ import ChatBox from './ChatBox';
 interface MetricsPanelProps {
   data: WaveformData;
   datasetId: string;
+  onSuggestionsReceived?: (suggestions: WaveformData) => void;
 }
 
 type TabMode = 'info' | 'chat';
 
-export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
+export default function MetricsPanel({ data, datasetId, onSuggestionsReceived }: MetricsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabMode>('info');
 
   // Load saved tab preference from localStorage on mount
@@ -131,7 +132,7 @@ export default function MetricsPanel({ data, datasetId }: MetricsPanelProps) {
           </div>
         ) : (
           <div className="h-full p-2 sm:p-4">
-            <ChatBox datasetId={datasetId} />
+            <ChatBox datasetId={datasetId} onSuggestionsReceived={onSuggestionsReceived} />
           </div>
         )}
       </div>
