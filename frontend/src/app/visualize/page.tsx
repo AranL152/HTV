@@ -62,7 +62,7 @@ function VisualizeContent() {
   return (
     <div className="min-h-screen">
       <Header />
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className="pl-2 pr-4 py-4 sm:pl-3 sm:pr-6 sm:py-6 lg:pl-4 lg:pr-8 lg:py-8">
         <div className="max-w-full mx-auto space-y-4">
           <div className="flex justify-end">
             <Link
