@@ -52,12 +52,14 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
       return path;
     } else {
-      // Weight mode
-      const maxWeight = Math.max(...data.peaks.map((p) => p.weight ?? 1.0));
+      // Weight mode - fixed scale 0.01 to 2, with 1.0 near middle
+      const minWeight = 0.01;
+      const maxWeight = 2;
 
       const points = data.peaks.map((p) => {
         const weight = p.weight ?? 1.0;
-        const ratio = maxWeight > 0 ? weight / maxWeight : 1;
+        // Normalize to 0-1 range where 0.01 = bottom, 1.0 ≈ middle, 2.0 = top
+        const ratio = (weight - minWeight) / (maxWeight - minWeight);
         return {
           x: p.x * (width - 2 * padding) + padding,
           y: (1 - ratio) * (height - 2 * padding) + padding,
@@ -106,12 +108,14 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
       return path;
     } else {
-      // Weight mode: Show baseline (weight = 1.0) for all clusters
+      // Weight mode: Show baseline (weight = 1.0) near middle
       const baselineWeight = 1.0;
-      const maxWeight = Math.max(...data.peaks.map((p) => p.weight ?? 1.0), baselineWeight);
+      const minWeight = 0.01;
+      const maxWeight = 2;
 
       const points = data.peaks.map((p) => {
-        const ratio = maxWeight > 0 ? baselineWeight / maxWeight : 1;
+        // Baseline 1.0 maps to near middle
+        const ratio = (baselineWeight - minWeight) / (maxWeight - minWeight);
         return {
           x: p.x * (width - 2 * padding) + padding,
           y: (1 - ratio) * (height - 2 * padding) + padding,
@@ -168,12 +172,13 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
       return path;
     } else {
-      // Weight mode
-      const maxWeight = Math.max(...data.peaks.map((p) => p.suggestedWeight ?? 1.0));
+      // Weight mode - fixed scale 0.01 to 2
+      const minWeight = 0.01;
+      const maxWeight = 2;
 
       const points = data.peaks.map((p) => {
         const suggestedWeight = p.suggestedWeight ?? (p.weight ?? 1.0);
-        const ratio = maxWeight > 0 ? suggestedWeight / maxWeight : 1;
+        const ratio = (suggestedWeight - minWeight) / (maxWeight - minWeight);
         return {
           x: p.x * (width - 2 * padding) + padding,
           y: (1 - ratio) * (height - 2 * padding) + padding,
@@ -225,16 +230,18 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
           }),
         };
       } else {
-        // Weight mode
-        const maxWeight = Math.max(...prevData.peaks.map((p) => p.weight ?? 1.0));
+        // Weight mode - fixed scale 0.01 to 2 (avoid exactly 0)
+        const minWeight = 0.01;
+        const maxWeight = 2;
 
         return {
           ...prevData,
           peaks: prevData.peaks.map((peak) => {
             if (peak.id === draggingPeak) {
-              // Calculate weight based on ratio (0.1 to 5.0 range)
-              const newWeight = Math.max(0.1, Math.min(5.0, ratio * maxWeight));
-              return { ...peak, weight: Number(newWeight.toFixed(2)) };
+              // Calculate weight based on ratio (0.01 to 2 range)
+              const newWeight = minWeight + ratio * (maxWeight - minWeight);
+              const clampedWeight = Math.max(minWeight, Math.min(maxWeight, newWeight));
+              return { ...peak, weight: Number(clampedWeight.toFixed(2)) };
             }
             return peak;
           }),
@@ -358,11 +365,12 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
               );
             });
           } else {
-            // Weight mode: Show baseline weight = 1.0
+            // Weight mode: Show baseline weight = 1.0 near middle
             const baselineWeight = 1.0;
-            const maxWeight = Math.max(...data.peaks.map((p) => p.weight ?? 1.0), baselineWeight);
+            const minWeight = 0.01;
+            const maxWeight = 2;
             return data.peaks.map((peak) => {
-              const ratio = maxWeight > 0 ? baselineWeight / maxWeight : 1;
+              const ratio = (baselineWeight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
@@ -415,12 +423,13 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
               );
             });
           } else {
-            // Weight mode
-            const maxWeight = Math.max(...data.peaks.map((p) => p.suggestedWeight ?? 1.0));
+            // Weight mode - fixed scale 0.01 to 2
+            const minWeight = 0.01;
+            const maxWeight = 2;
             return data.peaks.map((peak) => {
               if (peak.suggestedWeight === undefined) return null;
 
-              const ratio = maxWeight > 0 ? peak.suggestedWeight / maxWeight : 1;
+              const ratio = (peak.suggestedWeight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
@@ -497,11 +506,12 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
               );
             });
           } else {
-            // Weight mode
-            const maxWeight = Math.max(...data.peaks.map((p) => p.weight ?? 1.0));
+            // Weight mode - fixed scale 0.01 to 2
+            const minWeight = 0.01;
+            const maxWeight = 2;
             return data.peaks.map((peak) => {
               const weight = peak.weight ?? 1.0;
-              const ratio = maxWeight > 0 ? weight / maxWeight : 1;
+              const ratio = (weight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
               const isDragging = draggingPeak === peak.id;

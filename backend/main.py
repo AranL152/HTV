@@ -36,7 +36,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 class CountAdjustment(BaseModel):
     id: int = Field(..., ge=0)
     selectedCount: int | None = Field(None, ge=0)
-    weight: float | None = Field(None, ge=0.1, le=5.0)
+    weight: float | None = Field(None, ge=0.01, le=2.0)
 
 
 class AdjustmentRequest(BaseModel):

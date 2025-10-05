@@ -89,14 +89,14 @@ INSTRUCTIONS:
 4. DO NOT just downsize everything - make STRATEGIC decisions based on SEMANTIC MEANING
 
 EXAMPLES OF GOOD REASONING:
-- "Senior Male Engineers" (5000 samples) → Suggest count: 2000, weight: 0.8: "Overrepresented demographic. Reduce count to mitigate gender/seniority bias. Lower weight (0.8) to deprioritize in sampling."
-- "Junior Diverse Candidates" (800 samples) → Suggest count: 800, weight: 1.5: "Underrepresented group with high diversity. Keep all samples. Higher weight (1.5x) to prioritize in balanced dataset."
+- "Senior Male Engineers" (5000 samples) → Suggest count: 2000, weight: 0.6: "Overrepresented demographic. Reduce count to mitigate gender/seniority bias. Lower weight (0.6) to deprioritize in sampling."
+- "Junior Diverse Candidates" (800 samples) → Suggest count: 800, weight: 1.4: "Underrepresented group with high diversity. Keep all samples. Higher weight (1.4) to prioritize in balanced dataset."
 - "Mid-level Full-Stack Developers" (3000 samples) → Suggest count: 2000, weight: 1.0: "Common profile. Moderate count reduction. Baseline weight (1.0) for neutral priority."
-- "Women in Tech Leadership" (200 samples) → Suggest count: 200, weight: 2.0: "Underrepresented demographic. Keep all samples. Double weight (2.0x) to maximize representation in export."
+- "Women in Tech Leadership" (200 samples) → Suggest count: 200, weight: 1.8: "Underrepresented demographic. Keep all samples. Higher weight (1.8) to maximize representation in export."
 
 CONSTRAINTS:
 - selectedCount must be between 0 and sampleCount
-- suggestedWeight should be between 0.1 and 3.0 (baseline is 1.0)
+- suggestedWeight should be between 0.01 and 2.0 (baseline is 1.0)
   - Weight < 1.0: Deprioritize this cluster in final dataset
   - Weight = 1.0: Neutral/baseline priority
   - Weight > 1.0: Prioritize this cluster in final dataset
@@ -106,8 +106,8 @@ CONSTRAINTS:
 OUTPUT FORMAT (JSON only, no explanation):
 {{
   "suggestions": [
-    {{"id": 0, "suggestedCount": <number>, "suggestedWeight": <float 0.1-3.0>, "reasoning": "<explain why based on bias priorities>"}},
-    {{"id": 1, "suggestedCount": <number>, "suggestedWeight": <float 0.1-3.0>, "reasoning": "<explain why based on bias priorities>"}}
+    {{"id": 0, "suggestedCount": <number>, "suggestedWeight": <float 0.01-2.0>, "reasoning": "<explain why based on bias priorities>"}},
+    {{"id": 1, "suggestedCount": <number>, "suggestedWeight": <float 0.01-2.0>, "reasoning": "<explain why based on bias priorities>"}}
   ],
   "overall_strategy": "<1-2 sentence summary of balancing approach and bias mitigation>"
 }}
