@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -8,12 +8,13 @@ import WaveformModeToggle from '@/components/WaveformModeToggle';
 import MetricsPanel from '@/components/MetricsPanel';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ClusterDetailModal from '@/components/ClusterDetailModal';
+import Header from '@/components/Header';
 import { WaveformData, WaveformMode } from '@/types';
 import { apiClient } from '@/lib/api-client';
 
 function VisualizeContent() {
   const searchParams = useSearchParams();
-  const datasetId = searchParams.get('id');
+  const datasetId = searchParams.get("id");
   const [data, setData] = useState<WaveformData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +23,7 @@ function VisualizeContent() {
 
   useEffect(() => {
     if (!datasetId) {
-      setError('No dataset ID provided');
+      setError("No dataset ID provided");
       setLoading(false);
       return;
     }
@@ -32,7 +33,7 @@ function VisualizeContent() {
         const waveformData = await apiClient.getWaveform(datasetId);
         setData(waveformData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
+        setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
         setLoading(false);
       }
@@ -49,7 +50,7 @@ function VisualizeContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div className="text-red-500 text-center">
-          <p className="text-xl mb-4">{error || 'No data available'}</p>
+          <p className="text-xl mb-4">{error || "No data available"}</p>
           <Link href="/" className="text-white hover:underline">
             ← Back to upload
           </Link>
@@ -59,45 +60,48 @@ function VisualizeContent() {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="max-w-full mx-auto space-y-4">
-        <div className="flex justify-end">
-          <Link
-            href="/"
-            className="text-white/60 hover:text-white transition-colors text-sm"
-          >
-            ← New dataset
-          </Link>
-        </div>
+    <div className="min-h-screen">
+      <Header />
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="max-w-full mx-auto space-y-4">
+          <div className="flex justify-end">
+            <Link
+              href="/"
+              className="text-white/60 hover:text-white transition-colors text-sm"
+            >
+              ← New dataset
+            </Link>
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
-          {/* Waveform */}
-          <div className="relative">
-            <div className="absolute top-4 left-4 z-10">
-              <WaveformModeToggle mode={mode} onModeChange={setMode} />
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
+            {/* Waveform */}
+            <div className="relative">
+              <div className="absolute top-4 left-4 z-10">
+                <WaveformModeToggle mode={mode} onModeChange={setMode} />
+              </div>
+              <Waveform
+                datasetId={datasetId}
+                initialData={data}
+                onDataUpdate={setData}
+                onClusterClick={setSelectedClusterId}
+                mode={mode}
+              />
             </div>
-            <Waveform
+
+            {/* Metrics Panel */}
+            <MetricsPanel
+              data={data}
               datasetId={datasetId}
-              initialData={data}
-              onDataUpdate={setData}
-              onClusterClick={setSelectedClusterId}
+              onSuggestionsReceived={setData}
               mode={mode}
             />
           </div>
 
-          {/* Metrics Panel */}
-          <MetricsPanel
-            data={data}
-            datasetId={datasetId}
-            onSuggestionsReceived={setData}
-            mode={mode}
+          <ClusterDetailModal
+            cluster={data.peaks.find((p) => p.id === selectedClusterId) || null}
+            onClose={() => setSelectedClusterId(null)}
           />
         </div>
-
-        <ClusterDetailModal
-          cluster={data.peaks.find(p => p.id === selectedClusterId) || null}
-          onClose={() => setSelectedClusterId(null)}
-        />
       </div>
     </div>
   );

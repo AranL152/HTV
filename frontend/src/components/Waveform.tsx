@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { WaveformData, WaveformMode } from '@/types';
@@ -19,12 +19,12 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   const [hasDragged, setHasDragged] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const width = 1000;
-  const height = 400;
-  const padding = 40;
+  const width = 1100;
+  const height = 700;
+  const padding = 100;
 
   const generateSmoothPath = () => {
-    if (data.peaks.length === 0) return '';
+    if (data.peaks.length === 0) return "";
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
@@ -81,7 +81,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   };
 
   const generateGhostPath = () => {
-    if (data.peaks.length === 0) return '';
+    if (data.peaks.length === 0) return "";
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
@@ -137,7 +137,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   };
 
   const generateSuggestedPath = () => {
-    if (data.peaks.length === 0) return '';
+    if (data.peaks.length === 0) return "";
 
     // Check if any peak has suggested counts or weights
     const hasSuggestions = mode === 'count'
@@ -286,7 +286,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         onDataUpdate(updatedData);
       }
     } catch (err) {
-      console.error('Failed to update peak:', err);
+      console.error("Failed to update peak:", err);
     }
 
     setDraggingPeak(null);
@@ -325,7 +325,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         {generateSuggestedPath() && (
           <path
             d={generateSuggestedPath()}
-            stroke="#3b82f6"
+            stroke="#ffffff"
             strokeWidth={2}
             fill="none"
             opacity={0.5}
