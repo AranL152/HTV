@@ -9,12 +9,13 @@ from .client import get_gemini_model
 from .prompts import build_balance_suggestion_prompt, build_detection_prompt
 
 
-async def suggest_balance(df: pd.DataFrame, waveform: dict) -> dict:
+async def suggest_balance(df: pd.DataFrame, waveform: dict, user_request: str = None) -> dict:
     """Generate AI balance suggestions for dataset.
 
     Args:
         df: Original DataFrame
         waveform: Current waveform data with peaks
+        user_request: Optional user request to inform suggestions (e.g., "reduce Big Tech")
 
     Returns:
         Dictionary with suggestions list and overall strategy
@@ -31,10 +32,17 @@ async def suggest_balance(df: pd.DataFrame, waveform: dict) -> dict:
     # Add cluster details
     for peak in waveform['peaks']:
         selection_ratio = peak['selectedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
+
+        # Include current suggested values if they exist
+        suggested_info = ""
+        if peak.get('suggestedCount') is not None:
+            suggested_info = f"\n  - Current AI suggestion: {peak['suggestedCount']}"
+
         context_parts.append(
             f"\nCluster {peak['id']} - {peak['label']}:"
             f"\n  - Total available samples: {peak['sampleCount']}"
             f"\n  - Currently selected: {peak['selectedCount']} ({selection_ratio:.1%})"
+            f"{suggested_info}"
             f"\n  - Examples: {', '.join(peak['samples'][:3])}"
         )
 
@@ -48,8 +56,8 @@ async def suggest_balance(df: pd.DataFrame, waveform: dict) -> dict:
 
     context = "\n".join(context_parts)
 
-    # Build prompt
-    prompt = build_balance_suggestion_prompt(context)
+    # Build prompt with optional user request
+    prompt = build_balance_suggestion_prompt(context, user_request)
 
     # Call Gemini API
     model = get_gemini_model()

@@ -65,7 +65,10 @@ export default function ChatBox({ datasetId, onSuggestionsReceived }: ChatBoxPro
 
       // If chat response includes new suggestions, update waveform
       if (response.suggestions && onSuggestionsReceived) {
+        console.log('📊 Chat suggestions received:', response.suggestions);
         onSuggestionsReceived(response.suggestions);
+      } else {
+        console.log('ℹ️ No suggestions in chat response');
       }
     } catch (error) {
       let errorContent = 'Failed to get response';

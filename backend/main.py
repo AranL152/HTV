@@ -10,7 +10,7 @@ import random
 
 from config import Config
 from services.embedder import generate_embeddings
-from services.clusterer import cluster_data
+from services.clusterer import cluster_data, extract_clusters_from_csv
 from services.analyzer import analyze_clusters
 from services.waveform import build_waveform
 from utils.metrics import calculate_gini_coefficient
@@ -85,11 +85,19 @@ async def upload_file(file: UploadFile = File(...)):
         print("Generating embeddings...")
         embeddings = generate_embeddings(df)
 
-        print("Clustering data...")
-        clusters = cluster_data(embeddings)
+        # Check if CSV has predefined clusters
+        cluster_result = extract_clusters_from_csv(df)
+        cluster_labels_map = None
+
+        if cluster_result:
+            print("Using predefined clusters from CSV...")
+            clusters, cluster_labels_map = cluster_result
+        else:
+            print("Clustering data with K-Means...")
+            clusters = cluster_data(embeddings)
 
         print("Analyzing clusters...")
-        descriptions = analyze_clusters(df, clusters)
+        descriptions = analyze_clusters(df, clusters, cluster_labels_map)
 
         print("Building waveform...")
         waveform_data = build_waveform(embeddings, clusters, descriptions, df)
@@ -295,13 +303,15 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
 
         # Check if user is asking for balance adjustments
         should_generate_suggestions = await detect_balance_request(request.message)
+        print(f"🔍 Balance request detection: '{request.message}' -> {should_generate_suggestions}")
 
         # If user wants balance adjustments, generate new suggestions
         new_suggestions = None
         if should_generate_suggestions:
+            print("✅ Generating new balance suggestions...")
             try:
                 # Get current suggestions (context-aware based on user request)
-                suggestions_data = await suggest_balance(df, waveform)
+                suggestions_data = await suggest_balance(df, waveform, request.message)
 
                 # Build waveform with new suggestions
                 suggested_waveform = {
@@ -337,8 +347,9 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
                 }
 
                 new_suggestions = suggested_waveform
+                print(f"✅ Generated {len(suggested_waveform['peaks'])} peak suggestions")
             except Exception as e:
-                print(f"Failed to generate suggestions: {str(e)}")
+                print(f"❌ Failed to generate suggestions: {str(e)}")
                 # Continue without suggestions if generation fails
 
         # Store assistant message
@@ -349,6 +360,7 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         }
         datasets[dataset_id]['chat_history'].append(assistant_message)
 
+        print(f"📤 Returning chat response with suggestions: {new_suggestions is not None}")
         return ChatResponse(
             response=response_text,
             suggestions=new_suggestions

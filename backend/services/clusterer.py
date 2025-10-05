@@ -1,6 +1,7 @@
 """K-Means clustering and UMAP 1D projection service."""
 
 import numpy as np
+import pandas as pd
 from sklearn.cluster import KMeans
 from umap import UMAP
 
@@ -75,3 +76,34 @@ def project_to_1d(cluster_centers: np.ndarray) -> np.ndarray:
     normalized = (positions_flat - min_pos) / (max_pos - min_pos)
 
     return normalized
+
+
+def extract_clusters_from_csv(df: pd.DataFrame) -> tuple[np.ndarray, dict[int, str]] | None:
+    """
+    Extract cluster labels from CSV if 'cluster' column exists.
+
+    Args:
+        df: pandas DataFrame with optional 'cluster' column
+
+    Returns:
+        Tuple of (labels array, label_mapping dict) if cluster column exists, None otherwise
+        - labels: numpy array of cluster IDs (n_samples,)
+        - label_mapping: dict mapping cluster ID to cluster name
+    """
+    if 'cluster' not in df.columns:
+        return None
+
+    print("Found 'cluster' column in CSV - using predefined clusters")
+
+    # Get unique cluster names
+    unique_clusters = df['cluster'].unique()
+    print(f"Found {len(unique_clusters)} unique clusters: {list(unique_clusters)}")
+
+    # Create mapping from cluster name to ID
+    cluster_to_id = {name: idx for idx, name in enumerate(sorted(unique_clusters))}
+    id_to_cluster = {idx: name for name, idx in cluster_to_id.items()}
+
+    # Convert cluster names to numeric IDs
+    labels = df['cluster'].map(cluster_to_id).to_numpy()
+
+    return labels, id_to_cluster
