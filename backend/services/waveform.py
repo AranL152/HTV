@@ -9,7 +9,7 @@ from utils.metrics import calculate_gini_coefficient
 def build_waveform(
     embeddings: np.ndarray,
     clusters: np.ndarray,
-    descriptions: Dict[int, str],
+    descriptions: Dict[int, dict],
     df=None
 ) -> dict:
     """
@@ -18,7 +18,7 @@ def build_waveform(
     Args:
         embeddings: numpy array of embeddings (n_samples x embedding_dim)
         clusters: numpy array of cluster labels (n_samples,)
-        descriptions: Dictionary mapping cluster_id to description string
+        descriptions: Dictionary mapping cluster_id to {"label": str, "summary": str}
 
     Returns:
         Dictionary with structure:
@@ -29,6 +29,7 @@ def build_waveform(
                     "x": position (0-1),
                     "selectedCount": count (initially equals sampleCount),
                     "label": description,
+                    "summary": summary,
                     "color": hex_color,
                     "sampleCount": count,
                     "samples": []
@@ -84,11 +85,18 @@ def build_waveform(
                 for _, row in sample_rows.iterrows()
             ]
 
+        # Get analysis data for this cluster
+        analysis = descriptions.get(int(cluster_id), {
+            "label": f"Cluster {cluster_id}",
+            "summary": ""
+        })
+
         peak = {
             "id": int(cluster_id),
             "x": x_val,
             "selectedCount": sample_count,  # Initially all points selected
-            "label": descriptions.get(int(cluster_id), f"Cluster {cluster_id}"),
+            "label": analysis.get("label", f"Cluster {cluster_id}"),
+            "summary": analysis.get("summary", ""),
             "color": colors[i],
             "sampleCount": sample_count,
             "samples": samples

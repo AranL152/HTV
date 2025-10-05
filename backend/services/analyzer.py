@@ -3,6 +3,7 @@
 from typing import Dict
 import numpy as np
 import pandas as pd
+import json
 import google.generativeai as genai
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -14,9 +15,9 @@ genai.configure(api_key=Config.GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 
-def _analyze_single_cluster(cluster_id: int, df: pd.DataFrame, clusters: np.ndarray) -> tuple[int, str]:
+def _analyze_single_cluster(cluster_id: int, df: pd.DataFrame, clusters: np.ndarray) -> tuple[int, dict]:
     """
-    Analyze a single cluster and return its description.
+    Analyze a single cluster and return its label and summary.
 
     Args:
         cluster_id: Cluster ID to analyze
@@ -24,7 +25,7 @@ def _analyze_single_cluster(cluster_id: int, df: pd.DataFrame, clusters: np.ndar
         clusters: Cluster labels array
 
     Returns:
-        Tuple of (cluster_id, description)
+        Tuple of (cluster_id, {"label": str, "summary": str})
     """
     # Get indices for this cluster
     cluster_mask = clusters == cluster_id
@@ -40,37 +41,56 @@ def _analyze_single_cluster(cluster_id: int, df: pd.DataFrame, clusters: np.ndar
         for i, (_, row) in enumerate(samples.iterrows())
     ])
 
-    # Generate description with Gemini
-    prompt = f"""Analyze these data samples from a cluster and create a concise label.
+    # Generate description and summary with Gemini in a single call
+    prompt = f"""Analyze these data samples from a cluster and generate:
+1. A concise label (3-5 words) describing this cluster
+2. A summary (2-3 sentences) explaining what common traits or characteristics caused them to be grouped together
 
 Samples:
 {sample_text}
 
-Generate a descriptive label for this cluster in 3-5 words. Focus on the key characteristics that define this group. Return only the label, nothing else."""
+Return ONLY a JSON object in this exact format:
+{{"label": "short label here", "summary": "detailed summary here"}}"""
 
     try:
         response = model.generate_content(prompt)
-        description = response.text.strip()
-        print(f"✓ Gemini generated description for cluster {cluster_id}: {description}")
+        response_text = response.text.strip()
+
+        # Try to extract JSON from response (handle markdown code blocks)
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0].strip()
+
+        analysis = json.loads(response_text)
+
+        # Validate response structure
+        if "label" not in analysis or "summary" not in analysis:
+            raise ValueError("Missing required fields in JSON response")
+
+        print(f"✓ Gemini generated analysis for cluster {cluster_id}: {analysis['label']}")
+        return (int(cluster_id), analysis)
+
     except Exception as e:
-        # Fallback label if Gemini fails
+        # Fallback if Gemini fails or JSON parsing fails
         print(f"⚠️  Gemini failed for cluster {cluster_id}: {type(e).__name__}: {str(e)}")
-        description = f"Cluster {cluster_id}"
-        # Note: Using fallback instead of failing ensures graceful degradation
+        fallback = {
+            "label": f"Cluster {cluster_id}",
+            "summary": "Unable to generate summary at this time."
+        }
+        return (int(cluster_id), fallback)
 
-    return (int(cluster_id), description)
 
-
-def analyze_clusters(df: pd.DataFrame, clusters: np.ndarray) -> Dict[int, str]:
+def analyze_clusters(df: pd.DataFrame, clusters: np.ndarray) -> Dict[int, dict]:
     """
-    Generate human-readable descriptions for each cluster using Gemini in parallel.
+    Generate human-readable labels and summaries for each cluster using Gemini in parallel.
 
     Args:
         df: Original DataFrame
         clusters: Cluster labels array (n_samples,)
 
     Returns:
-        Dictionary mapping cluster_id to description string
+        Dictionary mapping cluster_id to {"label": str, "summary": str}
     """
     unique_clusters = np.unique(clusters)
 
@@ -85,10 +105,10 @@ def analyze_clusters(df: pd.DataFrame, clusters: np.ndarray) -> Dict[int, str]:
         ]
 
         # Collect results
-        descriptions = {}
+        analyses = {}
         for future in futures:
-            cluster_id, description = future.result()
-            descriptions[cluster_id] = description
+            cluster_id, analysis = future.result()
+            analyses[cluster_id] = analysis
 
     print(f"✓ Finished analyzing all {len(unique_clusters)} clusters")
-    return descriptions
+    return analyses

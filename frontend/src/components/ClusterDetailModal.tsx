@@ -48,8 +48,22 @@ export default function ClusterDetailModal({ cluster, onClose }: ClusterDetailMo
           </div>
         </div>
 
+        {/* Cluster Summary */}
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-3">Cluster Information</h3>
+          {cluster.summary ? (
+            <div className="bg-black/30 rounded p-4 text-sm text-white/80 leading-relaxed">
+              {cluster.summary}
+            </div>
+          ) : (
+            <div className="bg-black/30 rounded p-4 text-sm text-white/40">
+              No summary available
+            </div>
+          )}
+        </div>
+
         {/* Sample Data */}
-        <div>
+        <div className="mt-6">
           <h3 className="text-lg font-semibold mb-3">Representative Samples</h3>
           {cluster.samples && cluster.samples.length > 0 ? (
             <div className="space-y-2">

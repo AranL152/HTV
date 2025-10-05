@@ -12,6 +12,7 @@ export interface ClusterPeak {
   color: string;          // Hex color for visualization
   sampleCount: number;    // Total number of data points in cluster
   samples: string[];      // Representative samples for tooltip
+  summary?: string;       // AI-generated summary of cluster characteristics
 }
 
 export interface WaveformData {
