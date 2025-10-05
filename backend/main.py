@@ -7,6 +7,7 @@ import pandas as pd
 import io
 import uuid
 import random
+import asyncio
 
 from config import Config
 from services.embedder import generate_embeddings
@@ -298,20 +299,55 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         }
         datasets[dataset_id]['chat_history'].append(user_message)
 
-        # Generate chat response
-        response_text = await generate_chat_response(df, waveform, request.message)
+        # HARDCODED DEMO: First chat message always adjusts Big Tech Veterans
+        chat_count = len([m for m in datasets[dataset_id].get('chat_history', []) if m['role'] == 'user'])
+
+        # Add 1 second delay for more natural feel
+        await asyncio.sleep(1.0)
+
+        # Generate chat response (hardcoded for first message to reflect user's request)
+        if chat_count == 0:
+            response_text = f"Understood. I'll reduce Big Tech Veterans significantly. The new suggestion will appear as a dashed line on the waveform - you can drag the peak to match it or adjust manually."
+        else:
+            response_text = await generate_chat_response(df, waveform, request.message)
 
         # Check if user is asking for balance adjustments
-        should_generate_suggestions = await detect_balance_request(request.message)
-        print(f"🔍 Balance request detection: '{request.message}' -> {should_generate_suggestions}")
+        # HARDCODED: Force first message to always generate suggestions
+        if chat_count == 0:
+            should_generate_suggestions = True
+            print(f"🎯 HARDCODED: First message - forcing balance suggestions")
+        else:
+            should_generate_suggestions = await detect_balance_request(request.message)
+            print(f"🔍 Balance request detection: '{request.message}' -> {should_generate_suggestions}")
+        print(f"📊 Chat count: {chat_count}")
 
         # If user wants balance adjustments, generate new suggestions
         new_suggestions = None
         if should_generate_suggestions:
             print("✅ Generating new balance suggestions...")
             try:
-                # Get current suggestions (context-aware based on user request)
-                suggestions_data = await suggest_balance(df, waveform, request.message)
+                # HARDCODED: First message always reduces Big Tech Veterans to 50
+                if chat_count == 0:
+                    print("🎯 HARDCODED: First message - Big Tech Veterans → 50")
+                    suggestions_data = {'suggestions': [], 'overall_strategy': 'Reducing Big Tech Veterans dominance to improve balance.'}
+                    for peak in waveform['peaks']:
+                        if 'Big Tech Veterans' in peak['label']:
+                            suggestions_data['suggestions'].append({
+                                'id': peak['id'],
+                                'suggestedCount': 50,
+                                'suggestedWeight': 0.3,
+                                'reasoning': 'Reducing Big Tech Veterans from 360 to 50 to address political bias and improve diversity.'
+                            })
+                        else:
+                            suggestions_data['suggestions'].append({
+                                'id': peak['id'],
+                                'suggestedCount': int(peak['sampleCount'] * 0.85),
+                                'suggestedWeight': 1.0,
+                                'reasoning': 'Maintaining cluster at current level.'
+                            })
+                else:
+                    # Normal AI-based suggestions after first message
+                    suggestions_data = await suggest_balance(df, waveform, request.message)
 
                 # Build waveform with new suggestions
                 suggested_waveform = {
