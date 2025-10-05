@@ -315,20 +315,18 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         {/* Ghost waveform path (original cluster sizes) */}
         <path
           d={generateGhostPath()}
-          stroke="#ffffff"
+          stroke="#808080"
           strokeWidth={2}
           fill="none"
-          opacity={0.3}
         />
 
         {/* AI Suggested waveform path */}
         {generateSuggestedPath() && (
           <path
             d={generateSuggestedPath()}
-            stroke="#ffffff"
+            stroke="#808080"
             strokeWidth={2}
             fill="none"
-            opacity={0.5}
             strokeDasharray="5,5"
           />
         )}
@@ -356,10 +354,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                   cx={x}
                   cy={y}
                   r={6}
-                  fill={peak.color}
-                  stroke="#ffffff"
+                  fill="#808080"
+                  stroke="#808080"
                   strokeWidth={1}
-                  opacity={0.3}
                   className="pointer-events-none"
                 />
               );
@@ -380,10 +377,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                   cx={x}
                   cy={y}
                   r={6}
-                  fill={peak.color}
-                  stroke="#ffffff"
+                  fill="#808080"
+                  stroke="#808080"
                   strokeWidth={1}
-                  opacity={0.3}
                   className="pointer-events-none"
                 />
               );
@@ -414,10 +410,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                   cx={x}
                   cy={y}
                   r={5}
-                  fill="#3b82f6"
-                  stroke="#ffffff"
+                  fill="#808080"
+                  stroke="#808080"
                   strokeWidth={1}
-                  opacity={0.6}
                   className="pointer-events-none"
                 />
               );
@@ -439,10 +434,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                   cx={x}
                   cy={y}
                   r={5}
-                  fill="#3b82f6"
-                  stroke="#ffffff"
+                  fill="#808080"
+                  stroke="#808080"
                   strokeWidth={1}
-                  opacity={0.6}
                   className="pointer-events-none"
                 />
               );
@@ -450,7 +444,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
           }
         })()}
 
-        {/* Peak markers (interactive) */}
+        {/* Peak markers (interactive) - render last for highest z-index */}
+        <g className="z-10">
         {(() => {
           if (mode === 'count') {
             const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
@@ -468,7 +463,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                     cx={x}
                     cy={y}
                     r={isDragging ? 10 : isHovered ? 8 : 6}
-                    fill={peak.color}
+                    fill="#ffffff"
                     stroke="#ffffff"
                     strokeWidth={2}
                     className="cursor-grab active:cursor-grabbing"
@@ -523,7 +518,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                     cx={x}
                     cy={y}
                     r={isDragging ? 10 : isHovered ? 8 : 6}
-                    fill={peak.color}
+                    fill="#ffffff"
                     stroke="#ffffff"
                     strokeWidth={2}
                     className="cursor-grab active:cursor-grabbing"
@@ -562,6 +557,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             });
           }
         })()}
+        </g>
       </svg>
     </div>
   );
