@@ -4,10 +4,11 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Waveform from '@/components/Waveform';
+import WaveformModeToggle from '@/components/WaveformModeToggle';
 import MetricsPanel from '@/components/MetricsPanel';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ClusterDetailModal from '@/components/ClusterDetailModal';
-import { WaveformData } from '@/types';
+import { WaveformData, WaveformMode } from '@/types';
 import { apiClient } from '@/lib/api-client';
 
 function VisualizeContent() {
@@ -17,6 +18,7 @@ function VisualizeContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
+  const [mode, setMode] = useState<WaveformMode>('count');
 
   useEffect(() => {
     if (!datasetId) {
@@ -71,11 +73,13 @@ function VisualizeContent() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
           {/* Waveform */}
           <div className="space-y-4">
+            <WaveformModeToggle mode={mode} onModeChange={setMode} />
             <Waveform
               datasetId={datasetId}
               initialData={data}
               onDataUpdate={setData}
               onClusterClick={setSelectedClusterId}
+              mode={mode}
             />
           </div>
 
@@ -84,6 +88,7 @@ function VisualizeContent() {
             data={data}
             datasetId={datasetId}
             onSuggestionsReceived={setData}
+            mode={mode}
           />
         </div>
 

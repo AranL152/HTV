@@ -88,6 +88,7 @@ def build_waveform(
             "id": int(cluster_id),
             "x": x_val,
             "selectedCount": sample_count,  # Initially all points selected
+            "weight": 1.0,  # Default weight for all clusters
             "label": descriptions.get(int(cluster_id), f"Cluster {cluster_id}"),
             "color": colors[i],
             "sampleCount": sample_count,

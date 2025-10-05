@@ -35,7 +35,8 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 class CountAdjustment(BaseModel):
     id: int = Field(..., ge=0)
-    selectedCount: int = Field(..., ge=0)
+    selectedCount: int | None = Field(None, ge=0)
+    weight: float | None = Field(None, ge=0.1, le=5.0)
 
 
 class AdjustmentRequest(BaseModel):
@@ -105,6 +106,7 @@ async def upload_file(file: UploadFile = File(...)):
             )
             if suggestion:
                 peak['suggestedCount'] = suggestion['suggestedCount']
+                peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
                 peak['reasoning'] = suggestion.get('reasoning', '')
 
         waveform_data['strategy'] = suggestions.get('overall_strategy', '')
@@ -156,24 +158,29 @@ async def adjust_counts(dataset_id: str, request: AdjustmentRequest):
     waveform = datasets[dataset_id]['waveform']
     peak_ids = {peak['id'] for peak in waveform['peaks']}
 
-    # Validate cluster IDs exist and selected count is within valid range
+    # Validate cluster IDs exist and values are within valid range
     for adjustment in request.adjustments:
         if adjustment.id not in peak_ids:
             raise HTTPException(status_code=400, detail=f"Cluster {adjustment.id} not found")
 
-        # Find the peak to validate selectedCount
+        # Find the peak to validate adjustment
         peak = next((p for p in waveform['peaks'] if p['id'] == adjustment.id), None)
-        if peak and adjustment.selectedCount > peak['sampleCount']:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Selected count ({adjustment.selectedCount}) cannot exceed sample count ({peak['sampleCount']})"
-            )
+        if peak:
+            if adjustment.selectedCount is not None and adjustment.selectedCount > peak['sampleCount']:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Selected count ({adjustment.selectedCount}) cannot exceed sample count ({peak['sampleCount']})"
+                )
+            # Weight validation is handled by Pydantic (0.1-5.0)
 
-    # Update selected counts
+    # Update selected counts and/or weights
     for adjustment in request.adjustments:
         for peak in waveform['peaks']:
             if peak['id'] == adjustment.id:
-                peak['selectedCount'] = adjustment.selectedCount
+                if adjustment.selectedCount is not None:
+                    peak['selectedCount'] = adjustment.selectedCount
+                if adjustment.weight is not None:
+                    peak['weight'] = adjustment.weight
                 break
 
     # Recalculate metrics based on selection ratios
@@ -194,7 +201,7 @@ async def adjust_counts(dataset_id: str, request: AdjustmentRequest):
 
 @app.get("/api/export/{dataset_id}")
 async def export_dataset(dataset_id: str):
-    """Export pruned dataset based on selectedCount per cluster."""
+    """Export pruned dataset based on selectedCount and weights per cluster."""
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -203,8 +210,12 @@ async def export_dataset(dataset_id: str):
         clusters = datasets[dataset_id]['clusters']
         waveform = datasets[dataset_id]['waveform']
 
-        # Create selectedCount mapping
+        # Create selectedCount and weight mapping
         selected_map = {peak['id']: peak['selectedCount'] for peak in waveform['peaks']}
+        weight_map = {peak['id']: peak.get('weight', 1.0) for peak in waveform['peaks']}
+
+        # Check if any non-default weights are set (not all 1.0)
+        has_weights = any(w != 1.0 for w in weight_map.values())
 
         # Prune dataset: keep only selectedCount rows per cluster
         selected_indices = []
@@ -219,10 +230,26 @@ async def export_dataset(dataset_id: str):
             selected_count = selected_map.get(cluster_id, len(cluster_indices))
             selected_count = min(selected_count, len(cluster_indices))
 
-            # Randomly sample selectedCount rows from this cluster
-            if selected_count > 0:
-                sampled_indices = random.sample(cluster_indices, selected_count)
-                selected_indices.extend(sampled_indices)
+            # Apply weighted sampling if weights are set
+            if has_weights and selected_count > 0:
+                weight = weight_map.get(cluster_id, 1.0)
+                # Convert weight to sampling probability (higher weight = more samples)
+                # Scale selected_count by weight, but respect the original selectedCount as max
+                weighted_count = int(selected_count * weight)
+                # Clamp to available cluster size
+                weighted_count = min(weighted_count, len(cluster_indices))
+                # Use at least 1 sample if weight > 0 and original count > 0
+                if weight > 0 and selected_count > 0:
+                    weighted_count = max(1, weighted_count)
+
+                if weighted_count > 0:
+                    sampled_indices = random.sample(cluster_indices, weighted_count)
+                    selected_indices.extend(sampled_indices)
+            else:
+                # Standard sampling based on selectedCount only
+                if selected_count > 0:
+                    sampled_indices = random.sample(cluster_indices, selected_count)
+                    selected_indices.extend(sampled_indices)
 
         # Create pruned dataframe with selected rows
         if not selected_indices:
@@ -292,6 +319,7 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
                     )
                     if suggestion:
                         suggested_peak['suggestedCount'] = min(suggestion['suggestedCount'], peak['sampleCount'])
+                        suggested_peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
                         suggested_peak['reasoning'] = suggestion.get('reasoning', '')
                     suggested_waveform['peaks'].append(suggested_peak)
 
@@ -369,9 +397,11 @@ async def suggest_balance_endpoint(dataset_id: str):
                 suggested_count = min(suggestion['suggestedCount'], peak['sampleCount'])
                 suggested_count = max(0, suggested_count)
                 suggested_peak['suggestedCount'] = suggested_count
+                suggested_peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
                 suggested_peak['reasoning'] = suggestion.get('reasoning', '')
             else:
                 suggested_peak['suggestedCount'] = peak['selectedCount']
+                suggested_peak['suggestedWeight'] = peak.get('weight', 1.0)
                 suggested_peak['reasoning'] = 'No change suggested'
 
             suggested_waveform['peaks'].append(suggested_peak)

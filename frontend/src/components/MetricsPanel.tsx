@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { WaveformData } from '@/types';
+import { WaveformData, WaveformMode } from '@/types';
 import { apiClient } from '@/lib/api-client';
 import ChatBox from './ChatBox';
 
@@ -9,11 +9,12 @@ interface MetricsPanelProps {
   data: WaveformData;
   datasetId: string;
   onSuggestionsReceived?: (suggestions: WaveformData) => void;
+  mode: WaveformMode;
 }
 
 type TabMode = 'info' | 'chat';
 
-export default function MetricsPanel({ data, datasetId, onSuggestionsReceived }: MetricsPanelProps) {
+export default function MetricsPanel({ data, datasetId, onSuggestionsReceived, mode }: MetricsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabMode>('info');
 
   // Load saved tab preference from localStorage on mount
@@ -89,20 +90,47 @@ export default function MetricsPanel({ data, datasetId, onSuggestionsReceived }:
                 label="Clusters"
                 value={data.peaks.length.toString()}
               />
-              <MetricRow
-                label="Gini Coefficient"
-                value={data.metrics.giniCoefficient.toFixed(3)}
-                subtitle="Lower is more balanced (0 = perfect equality)"
-              />
-              <MetricRow
-                label="Flatness Score"
-                value={data.metrics.flatnessScore.toFixed(3)}
-                subtitle="Higher is more balanced (1 = perfectly flat)"
-              />
-              <MetricRow
-                label="Avg Amplitude"
-                value={data.metrics.avgAmplitude.toFixed(3)}
-              />
+              {mode === 'count' ? (
+                <>
+                  <MetricRow
+                    label="Gini Coefficient"
+                    value={data.metrics.giniCoefficient.toFixed(3)}
+                    subtitle="Lower is more balanced (0 = perfect equality)"
+                  />
+                  <MetricRow
+                    label="Flatness Score"
+                    value={data.metrics.flatnessScore.toFixed(3)}
+                    subtitle="Higher is more balanced (1 = perfectly flat)"
+                  />
+                  <MetricRow
+                    label="Avg Amplitude"
+                    value={data.metrics.avgAmplitude.toFixed(3)}
+                  />
+                </>
+              ) : (
+                <>
+                  <MetricRow
+                    label="Avg Weight"
+                    value={(data.peaks.reduce((sum, p) => sum + (p.weight ?? 1.0), 0) / data.peaks.length).toFixed(2)}
+                    subtitle="Average cluster weight"
+                  />
+                  <MetricRow
+                    label="Max Weight"
+                    value={Math.max(...data.peaks.map(p => p.weight ?? 1.0)).toFixed(2)}
+                    subtitle="Highest cluster weight"
+                  />
+                  <MetricRow
+                    label="Min Weight"
+                    value={Math.min(...data.peaks.map(p => p.weight ?? 1.0)).toFixed(2)}
+                    subtitle="Lowest cluster weight"
+                  />
+                  <MetricRow
+                    label="Weight Range"
+                    value={(Math.max(...data.peaks.map(p => p.weight ?? 1.0)) - Math.min(...data.peaks.map(p => p.weight ?? 1.0))).toFixed(2)}
+                    subtitle="Difference between max and min"
+                  />
+                </>
+              )}
             </div>
 
             <div className="pt-3 lg:pt-4 border-t border-[#333]">
@@ -116,7 +144,10 @@ export default function MetricsPanel({ data, datasetId, onSuggestionsReceived }:
                     />
                     <span className="flex-1 truncate min-w-0">{peak.label}</span>
                     <span className="text-white/60 text-xs sm:text-sm flex-shrink-0">
-                      {peak.sampleCount.toLocaleString()} ({(peak.selectedCount ?? peak.sampleCount).toLocaleString()} selected)
+                      {mode === 'count'
+                        ? `${peak.sampleCount.toLocaleString()} (${(peak.selectedCount ?? peak.sampleCount).toLocaleString()} selected)`
+                        : `Weight: ${(peak.weight ?? 1.0).toFixed(2)}x`
+                      }
                     </span>
                   </div>
                 ))}

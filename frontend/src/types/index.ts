@@ -7,6 +7,8 @@ export interface ClusterPeak {
   x: number;              // 0-1 position along waveform
   selectedCount: number;  // Number of datapoints selected (0 to sampleCount)
   suggestedCount?: number;  // AI-suggested count for this cluster
+  weight?: number;        // Weight for this cluster (default 1.0)
+  suggestedWeight?: number;  // AI-suggested weight for this cluster
   reasoning?: string;     // AI reasoning for suggestion
   label: string;          // Gemini-generated description
   color: string;          // Hex color for visualization
@@ -25,11 +27,15 @@ export interface WaveformData {
   strategy?: string;  // AI strategy description (for suggestions)
 }
 
+// Waveform mode
+export type WaveformMode = 'count' | 'weight';
+
 // API types
 export interface AdjustmentRequest {
   adjustments: Array<{
     id: number;
-    selectedCount: number;
+    selectedCount?: number;
+    weight?: number;
   }>;
 }
 
