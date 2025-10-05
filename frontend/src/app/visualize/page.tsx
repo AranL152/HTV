@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import Waveform from "@/components/Waveform";
-import MetricsPanel from "@/components/MetricsPanel";
-import LoadingSpinner from "@/components/LoadingSpinner";
-import ClusterDetailModal from "@/components/ClusterDetailModal";
-import Header from "@/components/Header";
-import { WaveformData } from "@/types";
-import { apiClient } from "@/lib/api-client";
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import Waveform from '@/components/Waveform';
+import WaveformModeToggle from '@/components/WaveformModeToggle';
+import MetricsPanel from '@/components/MetricsPanel';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import ClusterDetailModal from '@/components/ClusterDetailModal';
+import Header from '@/components/Header';
+import { WaveformData, WaveformMode } from '@/types';
+import { apiClient } from '@/lib/api-client';
 
 function VisualizeContent() {
   const searchParams = useSearchParams();
@@ -17,9 +18,8 @@ function VisualizeContent() {
   const [data, setData] = useState<WaveformData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClusterId, setSelectedClusterId] = useState<number | null>(
-    null
-  );
+  const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
+  const [mode, setMode] = useState<WaveformMode>('count');
 
   useEffect(() => {
     if (!datasetId) {
@@ -75,12 +75,16 @@ function VisualizeContent() {
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
             {/* Waveform */}
-            <div className="space-y-4">
+            <div className="relative">
+              <div className="absolute top-4 left-4 z-10">
+                <WaveformModeToggle mode={mode} onModeChange={setMode} />
+              </div>
               <Waveform
                 datasetId={datasetId}
                 initialData={data}
                 onDataUpdate={setData}
                 onClusterClick={setSelectedClusterId}
+                mode={mode}
               />
             </div>
 
@@ -89,6 +93,7 @@ function VisualizeContent() {
               data={data}
               datasetId={datasetId}
               onSuggestionsReceived={setData}
+              mode={mode}
             />
           </div>
 
