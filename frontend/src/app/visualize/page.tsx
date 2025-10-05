@@ -72,8 +72,10 @@ function VisualizeContent() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
           {/* Waveform */}
-          <div className="space-y-4">
-            <WaveformModeToggle mode={mode} onModeChange={setMode} />
+          <div className="relative">
+            <div className="absolute top-4 left-4 z-10">
+              <WaveformModeToggle mode={mode} onModeChange={setMode} />
+            </div>
             <Waveform
               datasetId={datasetId}
               initialData={data}
