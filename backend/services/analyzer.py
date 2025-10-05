@@ -11,7 +11,7 @@ from config import Config
 
 # Configure Gemini
 genai.configure(api_key=Config.GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-2.5-pro')
 
 
 def _analyze_single_cluster(cluster_id: int, df: pd.DataFrame, clusters: np.ndarray) -> tuple[int, str]:
@@ -61,19 +61,32 @@ Generate a descriptive label for this cluster in 3-5 words. Focus on the key cha
     return (int(cluster_id), description)
 
 
-def analyze_clusters(df: pd.DataFrame, clusters: np.ndarray) -> Dict[int, str]:
+def analyze_clusters(df: pd.DataFrame, clusters: np.ndarray, cluster_labels_map: Dict[int, str] = None) -> Dict[int, str]:
     """
     Generate human-readable descriptions for each cluster using Gemini in parallel.
+    If cluster_labels_map is provided (from CSV), use those labels instead of generating new ones.
 
     Args:
         df: Original DataFrame
         clusters: Cluster labels array (n_samples,)
+        cluster_labels_map: Optional mapping from cluster ID to label (from CSV 'cluster' column)
 
     Returns:
         Dictionary mapping cluster_id to description string
     """
     unique_clusters = np.unique(clusters)
 
+    # If we have predefined labels from CSV, use them directly
+    if cluster_labels_map is not None:
+        print(f"Using predefined cluster labels from CSV for {len(unique_clusters)} clusters")
+        descriptions = {}
+        for cluster_id in unique_clusters:
+            label = cluster_labels_map.get(cluster_id, f"Cluster {cluster_id}")
+            descriptions[int(cluster_id)] = label
+            print(f"✓ Cluster {cluster_id}: {label}")
+        return descriptions
+
+    # Otherwise, generate descriptions with Gemini
     print(f"Analyzing {len(unique_clusters)} clusters in parallel...")
 
     # Use ThreadPoolExecutor to parallelize Gemini API calls

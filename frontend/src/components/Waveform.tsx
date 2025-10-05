@@ -25,6 +25,11 @@ export default function Waveform({
   const [hasDragged, setHasDragged] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
+  // Sync internal state when initialData changes (e.g., from chat suggestions)
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
   const width = 1100;
   const height = 700;
   const padding = 120;
