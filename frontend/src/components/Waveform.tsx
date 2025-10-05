@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { WaveformData, WaveformMode } from '@/types';
-import { apiClient } from '@/lib/api-client';
+import { useState, useRef, useEffect, useCallback } from "react";
+import { WaveformData, WaveformMode } from "@/types";
+import { apiClient } from "@/lib/api-client";
 
 interface WaveformProps {
   datasetId: string;
@@ -12,7 +12,13 @@ interface WaveformProps {
   mode: WaveformMode;
 }
 
-export default function Waveform({ datasetId, initialData, onDataUpdate, onClusterClick, mode }: WaveformProps) {
+export default function Waveform({
+  datasetId,
+  initialData,
+  onDataUpdate,
+  onClusterClick,
+  mode,
+}: WaveformProps) {
   const [data, setData] = useState<WaveformData>(initialData);
   const [draggingPeak, setDraggingPeak] = useState<number | null>(null);
   const [hoveredPeak, setHoveredPeak] = useState<number | null>(null);
@@ -26,7 +32,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   const generateSmoothPath = () => {
     if (data.peaks.length === 0) return "";
 
-    if (mode === 'count') {
+    if (mode === "count") {
       // Find the maximum cluster size to normalize heights
       const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
 
@@ -47,7 +53,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const curr = points[i];
         const dx = (curr.x - prev.x) / 3;
 
-        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
+        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${
+          curr.x
+        },${curr.y}`;
       }
 
       return path;
@@ -73,7 +81,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const curr = points[i];
         const dx = (curr.x - prev.x) / 3;
 
-        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
+        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${
+          curr.x
+        },${curr.y}`;
       }
 
       return path;
@@ -83,7 +93,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   const generateGhostPath = () => {
     if (data.peaks.length === 0) return "";
 
-    if (mode === 'count') {
+    if (mode === "count") {
       // Find the maximum cluster size to normalize heights
       const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
 
@@ -103,7 +113,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const curr = points[i];
         const dx = (curr.x - prev.x) / 3;
 
-        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
+        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${
+          curr.x
+        },${curr.y}`;
       }
 
       return path;
@@ -129,7 +141,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const curr = points[i];
         const dx = (curr.x - prev.x) / 3;
 
-        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
+        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${
+          curr.x
+        },${curr.y}`;
       }
 
       return path;
@@ -140,13 +154,14 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     if (data.peaks.length === 0) return "";
 
     // Check if any peak has suggested counts or weights
-    const hasSuggestions = mode === 'count'
-      ? data.peaks.some(p => p.suggestedCount !== undefined)
-      : data.peaks.some(p => p.suggestedWeight !== undefined);
+    const hasSuggestions =
+      mode === "count"
+        ? data.peaks.some((p) => p.suggestedCount !== undefined)
+        : data.peaks.some((p) => p.suggestedWeight !== undefined);
 
-    if (!hasSuggestions) return '';
+    if (!hasSuggestions) return "";
 
-    if (mode === 'count') {
+    if (mode === "count") {
       // Find the maximum cluster size to normalize heights
       const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
 
@@ -167,7 +182,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const curr = points[i];
         const dx = (curr.x - prev.x) / 3;
 
-        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
+        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${
+          curr.x
+        },${curr.y}`;
       }
 
       return path;
@@ -177,7 +194,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
       const maxWeight = 2;
 
       const points = data.peaks.map((p) => {
-        const suggestedWeight = p.suggestedWeight ?? (p.weight ?? 1.0);
+        const suggestedWeight = p.suggestedWeight ?? p.weight ?? 1.0;
         const ratio = (suggestedWeight - minWeight) / (maxWeight - minWeight);
         return {
           x: p.x * (width - 2 * padding) + padding,
@@ -192,7 +209,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const curr = points[i];
         const dx = (curr.x - prev.x) / 3;
 
-        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
+        path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${
+          curr.x
+        },${curr.y}`;
       }
 
       return path;
@@ -214,8 +233,10 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     const ratio = Math.max(0, Math.min(1, 1 - normalizedY));
 
     setData((prevData) => {
-      if (mode === 'count') {
-        const maxSampleCount = Math.max(...prevData.peaks.map((p) => p.sampleCount));
+      if (mode === "count") {
+        const maxSampleCount = Math.max(
+          ...prevData.peaks.map((p) => p.sampleCount)
+        );
 
         return {
           ...prevData,
@@ -223,7 +244,10 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             if (peak.id === draggingPeak) {
               // Calculate count based on ratio relative to max, but clamp to peak's sampleCount
               const absoluteCount = Math.round(ratio * maxSampleCount);
-              const newSelectedCount = Math.min(absoluteCount, peak.sampleCount);
+              const newSelectedCount = Math.min(
+                absoluteCount,
+                peak.sampleCount
+              );
               return { ...peak, selectedCount: newSelectedCount };
             }
             return peak;
@@ -240,7 +264,10 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             if (peak.id === draggingPeak) {
               // Calculate weight based on ratio (0.01 to 2 range)
               const newWeight = minWeight + ratio * (maxWeight - minWeight);
-              const clampedWeight = Math.max(minWeight, Math.min(maxWeight, newWeight));
+              const clampedWeight = Math.max(
+                minWeight,
+                Math.min(maxWeight, newWeight)
+              );
               return { ...peak, weight: Number(clampedWeight.toFixed(2)) };
             }
             return peak;
@@ -268,8 +295,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
     // Otherwise, update the selectedCount or weight
     try {
-      if (mode === 'count') {
-        const selectedCount = adjustedPeak.selectedCount ?? adjustedPeak.sampleCount;
+      if (mode === "count") {
+        const selectedCount =
+          adjustedPeak.selectedCount ?? adjustedPeak.sampleCount;
         const updatedData = await apiClient.adjustAmplitudes(datasetId, {
           adjustments: [{ id: adjustedPeak.id, selectedCount }],
         });
@@ -290,15 +318,23 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     }
 
     setDraggingPeak(null);
-  }, [draggingPeak, hasDragged, data.peaks, mode, onClusterClick, datasetId, onDataUpdate]);
+  }, [
+    draggingPeak,
+    hasDragged,
+    data.peaks,
+    mode,
+    onClusterClick,
+    datasetId,
+    onDataUpdate,
+  ]);
 
   const handleMouseUp = async () => {
     await finishDrag();
   };
 
   useEffect(() => {
-    window.addEventListener('mouseup', finishDrag);
-    return () => window.removeEventListener('mouseup', finishDrag);
+    window.addEventListener("mouseup", finishDrag);
+    return () => window.removeEventListener("mouseup", finishDrag);
   }, [finishDrag]);
 
   return (
@@ -341,10 +377,13 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
         {/* Ghost peak markers (original cluster sizes or baseline weight) */}
         {(() => {
-          if (mode === 'count') {
-            const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+          if (mode === "count") {
+            const maxSampleCount = Math.max(
+              ...data.peaks.map((p) => p.sampleCount)
+            );
             return data.peaks.map((peak) => {
-              const ratio = maxSampleCount > 0 ? peak.sampleCount / maxSampleCount : 1;
+              const ratio =
+                maxSampleCount > 0 ? peak.sampleCount / maxSampleCount : 1;
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
@@ -367,7 +406,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             const minWeight = 0.01;
             const maxWeight = 2;
             return data.peaks.map((peak) => {
-              const ratio = (baselineWeight - minWeight) / (maxWeight - minWeight);
+              const ratio =
+                (baselineWeight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
@@ -389,18 +429,22 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
         {/* AI Suggested peak markers */}
         {(() => {
-          const hasSuggestions = mode === 'count'
-            ? data.peaks.some(p => p.suggestedCount !== undefined)
-            : data.peaks.some(p => p.suggestedWeight !== undefined);
+          const hasSuggestions =
+            mode === "count"
+              ? data.peaks.some((p) => p.suggestedCount !== undefined)
+              : data.peaks.some((p) => p.suggestedWeight !== undefined);
 
           if (!hasSuggestions) return null;
 
-          if (mode === 'count') {
-            const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+          if (mode === "count") {
+            const maxSampleCount = Math.max(
+              ...data.peaks.map((p) => p.sampleCount)
+            );
             return data.peaks.map((peak) => {
               if (peak.suggestedCount === undefined) return null;
 
-              const ratio = maxSampleCount > 0 ? peak.suggestedCount / maxSampleCount : 1;
+              const ratio =
+                maxSampleCount > 0 ? peak.suggestedCount / maxSampleCount : 1;
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
@@ -424,7 +468,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             return data.peaks.map((peak) => {
               if (peak.suggestedWeight === undefined) return null;
 
-              const ratio = (peak.suggestedWeight - minWeight) / (maxWeight - minWeight);
+              const ratio =
+                (peak.suggestedWeight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
@@ -446,130 +491,125 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
         {/* Peak markers (interactive) - render last for highest z-index */}
         <g className="z-10">
-        {(() => {
-          if (mode === 'count') {
-            const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
-            return data.peaks.map((peak) => {
-              const selectedCount = peak.selectedCount ?? peak.sampleCount;
-              const ratio = maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
-              const x = peak.x * (width - 2 * padding) + padding;
-              const y = (1 - ratio) * (height - 2 * padding) + padding;
-              const isDragging = draggingPeak === peak.id;
-              const isHovered = hoveredPeak === peak.id;
+          {(() => {
+            if (mode === "count") {
+              const maxSampleCount = Math.max(
+                ...data.peaks.map((p) => p.sampleCount)
+              );
+              return data.peaks.map((peak) => {
+                const selectedCount = peak.selectedCount ?? peak.sampleCount;
+                const ratio =
+                  maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
+                const x = peak.x * (width - 2 * padding) + padding;
+                const y = (1 - ratio) * (height - 2 * padding) + padding;
+                const isDragging = draggingPeak === peak.id;
+                const isHovered = hoveredPeak === peak.id;
 
-              return (
-                <g key={peak.id}>
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={isDragging ? 10 : isHovered ? 8 : 6}
-                    fill="#ffffff"
-                    stroke="#ffffff"
-                    strokeWidth={2}
-                    className="cursor-grab active:cursor-grabbing"
-                    onMouseDown={() => handleMouseDown(peak.id)}
-                    onMouseEnter={() => setHoveredPeak(peak.id)}
-                    onMouseLeave={() => setHoveredPeak(null)}
-                  />
+                return (
+                  <g key={peak.id}>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={isDragging ? 10 : isHovered ? 8 : 6}
+                      fill="#ffffff"
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      className="cursor-grab active:cursor-grabbing"
+                      onMouseDown={() => handleMouseDown(peak.id)}
+                      onMouseEnter={() => setHoveredPeak(peak.id)}
+                      onMouseLeave={() => setHoveredPeak(null)}
+                    />
 
-                {/* Label */}
-                <text
-                  x={x}
-                  y={y - 45}
-                  textAnchor="middle"
-                  fill="#ffffff"
-                  fontSize={12}
-                  className="pointer-events-none select-none"
-                >
-                  {peak.label}
-                </text>
-
-                {/* Count indicator on hover or drag */}
-                {(isHovered || isDragging) && (
-                  <text
-                    x={x}
-                    y={y - 15}
-                    textAnchor="middle"
-                    fill="#ffffff"
-                    fontSize={12}
-                    className="pointer-events-none select-none"
-                  >
-                    {peak.label}
-                  </text>
-
-                  {/* Count indicator on hover or drag */}
-                  {(isHovered || isDragging) && (
+                    {/* Label */}
                     <text
                       x={x}
-                      y={y + 25}
+                      y={y - 45}
                       textAnchor="middle"
                       fill="#ffffff"
-                      fontSize={10}
+                      fontSize={12}
                       className="pointer-events-none select-none"
                     >
-                      {selectedCount.toLocaleString()} / {peak.sampleCount.toLocaleString()}
+                      {peak.label}
                     </text>
-                  )}
-                </g>
-              );
-            });
-          } else {
-            // Weight mode - fixed scale 0.01 to 2
-            const minWeight = 0.01;
-            const maxWeight = 2;
-            return data.peaks.map((peak) => {
-              const weight = peak.weight ?? 1.0;
-              const ratio = (weight - minWeight) / (maxWeight - minWeight);
-              const x = peak.x * (width - 2 * padding) + padding;
-              const y = (1 - ratio) * (height - 2 * padding) + padding;
-              const isDragging = draggingPeak === peak.id;
-              const isHovered = hoveredPeak === peak.id;
 
-              return (
-                <g key={peak.id}>
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={isDragging ? 10 : isHovered ? 8 : 6}
-                    fill="#ffffff"
-                    stroke="#ffffff"
-                    strokeWidth={2}
-                    className="cursor-grab active:cursor-grabbing"
-                    onMouseDown={() => handleMouseDown(peak.id)}
-                    onMouseEnter={() => setHoveredPeak(peak.id)}
-                    onMouseLeave={() => setHoveredPeak(null)}
-                  />
+                    {/* Count indicator on hover or drag */}
+                    {(isHovered || isDragging) && (
+                      <text
+                        x={x}
+                        y={y + 25}
+                        textAnchor="middle"
+                        fill="#ffffff"
+                        fontSize={10}
+                        className="pointer-events-none select-none"
+                      >
+                        {selectedCount.toLocaleString()} /{" "}
+                        {peak.sampleCount.toLocaleString()}
+                      </text>
+                    )}
+                  </g>
+                );
+              });
+            } else {
+              // Weight mode - fixed scale 0.01 to 2
+              const minWeight = 0.01;
+              const maxWeight = 2;
+              return data.peaks.map((peak, index) => {
+                const weight = peak.weight ?? 1.0;
+                const ratio = (weight - minWeight) / (maxWeight - minWeight);
+                const x = peak.x * (width - 2 * padding) + padding;
+                const y = (1 - ratio) * (height - 2 * padding) + padding;
+                const isDragging = draggingPeak === peak.id;
+                const isHovered = hoveredPeak === peak.id;
 
-                  {/* Label */}
-                  <text
-                    x={x}
-                    y={y - 15}
-                    textAnchor="middle"
-                    fill="#ffffff"
-                    fontSize={12}
-                    className="pointer-events-none select-none"
-                  >
-                    {peak.label}
-                  </text>
+                // Alternate label position: even indices above, odd indices below
+                const isEvenIndex = index % 2 === 0;
+                const labelY = isEvenIndex ? y - 35 : y + 35;
 
-                  {/* Weight indicator on hover or drag */}
-                  {(isHovered || isDragging) && (
+                return (
+                  <g key={peak.id}>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={isDragging ? 10 : isHovered ? 8 : 6}
+                      fill="#ffffff"
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      className="cursor-grab active:cursor-grabbing"
+                      onMouseDown={() => handleMouseDown(peak.id)}
+                      onMouseEnter={() => setHoveredPeak(peak.id)}
+                      onMouseLeave={() => setHoveredPeak(null)}
+                    />
+
+                    {/* Label - alternating above/below */}
                     <text
                       x={x}
-                      y={y + 25}
+                      y={labelY}
                       textAnchor="middle"
                       fill="#ffffff"
-                      fontSize={10}
+                      fontSize={12}
                       className="pointer-events-none select-none"
                     >
-                      Weight: {weight.toFixed(2)}x
+                      {peak.label}
                     </text>
-                  )}
-                </g>
-              );
-            });
-          }
-        })()}
+
+                    {/* Weight indicator on hover or drag */}
+                    {(isHovered || isDragging) && (
+                      <text
+                        x={x}
+                        y={y + 25}
+                        textAnchor="middle"
+                        fill="#ffffff"
+                        fontSize={10}
+                        className="pointer-events-none select-none"
+                      >
+                        Weight: {weight.toFixed(2)}x
+                      </text>
+                    )}
+                  </g>
+                );
+              });
+            }
+          })()}
         </g>
       </svg>
     </div>

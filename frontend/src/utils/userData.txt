@@ -1,0 +1,8 @@
+# User Data Storage
+# This file stores the current logged-in user's information
+# Format: username (extracted from email before @ symbol)
+
+# Example entries:
+# john.doe
+# admin
+# user123

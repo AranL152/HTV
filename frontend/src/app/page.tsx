@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import AnimatedScene from "@/components/AnimatedScene";
 import Header from "@/components/Header";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -44,7 +45,7 @@ export default function Home() {
 
   return (
     <div className="relative flex flex-col min-h-screen overflow-hidden bg-black">
-      <Header />
+      <Header isLandingPage={true} />
       {/* Three.js Animated Height Map Background */}
       <div className="absolute inset-0 pointer-events-none">
         <AnimatedScene />
@@ -170,31 +171,13 @@ export default function Home() {
           <button
             onClick={triggerFileSelect}
             disabled={uploading}
-            className="relative px-5 py-2.5 bg-white text-black text-sm font-medium rounded-lg hover:bg-gray-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="relative px-5 py-2.5  text-black text-sm font-medium rounded-lg  transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="flex items-center gap-2">
               {uploading ? (
-                <span
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #000000 0%, #404040 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
-                  analyzing
-                </span>
+                <LoadingSpinner />
               ) : (
-                <span
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #000000 0%, #404040 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
+                <span className="text-black bg-white py-3 px-4 rounded-xl hover:bg-gray-200 transition-all duration-300">
                   get started
                 </span>
               )}

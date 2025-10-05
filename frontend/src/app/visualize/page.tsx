@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import Waveform from '@/components/Waveform';
-import WaveformModeToggle from '@/components/WaveformModeToggle';
-import MetricsPanel from '@/components/MetricsPanel';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import ClusterDetailModal from '@/components/ClusterDetailModal';
-import Header from '@/components/Header';
-import { WaveformData, WaveformMode } from '@/types';
-import { apiClient } from '@/lib/api-client';
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Waveform from "@/components/Waveform";
+import WaveformModeToggle from "@/components/WaveformModeToggle";
+import MetricsPanel from "@/components/MetricsPanel";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import ClusterDetailModal from "@/components/ClusterDetailModal";
+import Header from "@/components/Header";
+import { WaveformData, WaveformMode } from "@/types";
+import { apiClient } from "@/lib/api-client";
 
 function VisualizeContent() {
   const searchParams = useSearchParams();
@@ -18,8 +18,10 @@ function VisualizeContent() {
   const [data, setData] = useState<WaveformData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
-  const [mode, setMode] = useState<WaveformMode>('count');
+  const [selectedClusterId, setSelectedClusterId] = useState<number | null>(
+    null
+  );
+  const [mode, setMode] = useState<WaveformMode>("count");
 
   useEffect(() => {
     if (!datasetId) {
@@ -61,7 +63,7 @@ function VisualizeContent() {
 
   return (
     <div className="min-h-screen">
-      <Header />
+      <Header isLandingPage={false} />
       <div className="p-4 sm:p-6 lg:p-8">
         <div className="max-w-full mx-auto space-y-4">
           <div className="flex justify-end">

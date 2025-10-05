@@ -16,7 +16,7 @@ export default function AnimatedScene() {
       <OrbitControls
         enablePan={false}
         enableZoom={false}
-        enableRotate={true}
+        enableRotate={false}
         minPolarAngle={Math.PI / 6}
         maxPolarAngle={Math.PI / 2.5}
         minAzimuthAngle={-Math.PI / 2}
