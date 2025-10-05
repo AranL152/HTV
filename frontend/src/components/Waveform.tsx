@@ -25,7 +25,7 @@ export default function Waveform({
 
   const width = 1100;
   const height = 700;
-  const padding = 100;
+  const padding = 120;
 
   const generateSmoothPath = () => {
     if (data.peaks.length === 0) return "";
@@ -341,7 +341,7 @@ export default function Waveform({
                 {/* Label */}
                 <text
                   x={x}
-                  y={y - 15}
+                  y={y - 45}
                   textAnchor="middle"
                   fill="#ffffff"
                   fontSize={12}
