@@ -36,7 +36,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 class CountAdjustment(BaseModel):
     id: int = Field(..., ge=0)
-    selectedCount: int | None = Field(None, ge=0)
+    count: int | None = Field(None, ge=0)
     weight: float | None = Field(None, ge=0.01, le=2.0)
 
 
@@ -51,6 +51,51 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     suggestions: dict | None = None  # Optional waveform suggestions
+
+
+def create_user_waveform_from_base(base_waveform: dict) -> dict:
+    """Create initial user waveform as copy of base."""
+    return {
+        'peaks': [
+            {
+                'id': p['id'],
+                'x': p['x'],
+                'count': p['sampleCount'],
+                'weight': 1.0,
+                'label': p['label'],
+                'color': p['color']
+            }
+            for p in base_waveform['peaks']
+        ],
+        'totalPoints': base_waveform['totalPoints']
+    }
+
+
+def create_ai_waveform_from_suggestions(base_waveform: dict, suggestions: dict) -> dict:
+    """Create AI waveform from balance suggestions."""
+    ai_waveform = {
+        'peaks': [],
+        'totalPoints': base_waveform['totalPoints'],
+        'strategy': suggestions.get('overall_strategy', '')
+    }
+
+    for peak in base_waveform['peaks']:
+        suggestion = next(
+            (s for s in suggestions['suggestions'] if s['id'] == peak['id']),
+            None
+        )
+        ai_peak = {
+            'id': peak['id'],
+            'x': peak['x'],
+            'count': suggestion['suggestedCount'] if suggestion else peak['sampleCount'],
+            'weight': suggestion.get('suggestedWeight', 1.0) if suggestion else 1.0,
+            'label': peak['label'],
+            'color': peak['color'],
+            'reasoning': suggestion.get('reasoning', '') if suggestion else ''
+        }
+        ai_waveform['peaks'].append(ai_peak)
+
+    return ai_waveform
 
 
 async def _process_dataframe(df: pd.DataFrame) -> dict:
@@ -85,20 +130,27 @@ async def _process_dataframe(df: pd.DataFrame) -> dict:
 
     # Generate AI suggestions automatically
     print("Generating AI balance suggestions...")
-    suggestions = await suggest_balance(df, waveform_data)
+    # Initial call with no user modifications yet
+    initial_user_waveform = create_user_waveform_from_base(waveform_data)
+    suggestions = await suggest_balance(df, waveform_data, initial_user_waveform, None, None)
 
-    # Apply suggestions to waveform
-    for peak in waveform_data['peaks']:
-        suggestion = next(
-            (s for s in suggestions['suggestions'] if s['id'] == peak['id']),
-            None
-        )
-        if suggestion:
-            peak['suggestedCount'] = suggestion['suggestedCount']
-            peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
-            peak['reasoning'] = suggestion.get('reasoning', '')
+    # Create AI waveform from suggestions
+    ai_waveform = create_ai_waveform_from_suggestions(waveform_data, suggestions)
 
-    waveform_data['strategy'] = suggestions.get('overall_strategy', '')
+    # Log AI suggestion details
+    print(f"\n{'='*60}")
+    print(f"🔍 UPLOAD: AI Suggestions Generated")
+    print(f"{'='*60}")
+    print(f"Suggestions structure: {suggestions.keys()}")
+    print(f"Number of suggestions: {len(suggestions.get('suggestions', []))}")
+    print(f"Overall strategy: {suggestions.get('overall_strategy', 'MISSING')[:100]}...")
+    print(f"\n📊 AI Waveform Created:")
+    print(f"Total points: {ai_waveform.get('totalPoints')}")
+    print(f"Number of peaks: {len(ai_waveform.get('peaks', []))}")
+    print(f"Strategy in AI waveform: {ai_waveform.get('strategy', 'MISSING')[:100]}...")
+    for i, peak in enumerate(ai_waveform.get('peaks', [])[:3]):
+        print(f"  Peak {i}: id={peak['id']}, count={peak['count']}, weight={peak['weight']}, reasoning={peak.get('reasoning', 'MISSING')[:50]}...")
+    print(f"{'='*60}\n")
 
     # Create initial chat message
     initial_message = {
@@ -107,14 +159,14 @@ async def _process_dataframe(df: pd.DataFrame) -> dict:
         'timestamp': pd.Timestamp.now().isoformat()
     }
 
-    # Store everything including INITIAL AI baseline (never modified)
+    # Store three separate waveforms
     datasets[dataset_id] = {
         'df': df,
         'embeddings': embeddings,
         'clusters': clusters,
-        'waveform': waveform_data,
-        'initial_ai_suggestions': suggestions,  # Store original AI recommendations as baseline (never modified)
-        'latest_ai_suggestions': suggestions,  # Current AI suggestions (updated by chat, source of truth for dashed line)
+        'base_waveform': waveform_data,  # Original dataset (immutable)
+        'user_waveform': create_user_waveform_from_base(waveform_data),  # User's manual adjustments (starts as copy of base)
+        'ai_waveform': ai_waveform,  # AI suggestions (updated by chat)
         'chat_history': [initial_message]
     }
 
@@ -185,125 +237,131 @@ async def upload_sample_dataset():
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 
-def get_waveform_with_suggestions(dataset_id: str) -> dict:
+def get_all_waveforms(dataset_id: str) -> dict:
     """
-    Get waveform data merged with latest AI suggestions.
+    Get all three waveforms for a dataset.
 
-    This is the single source of truth for waveform data with suggestions.
-    - waveform contains user's manual adjustments (selectedCount, weight)
-    - latest_ai_suggestions contains AI's recommendations (suggestedCount, suggestedWeight)
+    Returns:
+        {
+            'base': base_waveform (original dataset, immutable),
+            'user': user_waveform (user's manual adjustments),
+            'ai': ai_waveform (AI suggestions),
+            'metrics': calculated metrics,
+            'strategy': AI strategy description
+        }
     """
-    waveform = datasets[dataset_id]['waveform']
-    latest_suggestions = datasets[dataset_id].get('latest_ai_suggestions', {})
+    base_waveform = datasets[dataset_id]['base_waveform']
+    user_waveform = datasets[dataset_id]['user_waveform']
+    ai_waveform = datasets[dataset_id]['ai_waveform']
 
-    # Create a deep copy to avoid mutating the stored waveform
-    result = {
-        'peaks': [],
-        'totalPoints': waveform['totalPoints'],
-        'metrics': waveform['metrics'].copy(),
-        'strategy': latest_suggestions.get('overall_strategy', '')
+    # Calculate metrics based on user's current selection ratios
+    selection_ratios = [
+        peak['count'] / base_peak['sampleCount'] if base_peak['sampleCount'] > 0 else 1.0
+        for peak, base_peak in zip(user_waveform['peaks'], base_waveform['peaks'])
+    ]
+    gini = calculate_gini_coefficient(selection_ratios)
+
+    metrics = {
+        "giniCoefficient": float(gini),
+        "flatnessScore": float(1 - gini),
+        "avgAmplitude": float(sum(selection_ratios) / len(selection_ratios))
     }
 
-    # Merge latest AI suggestions into waveform peaks
-    for peak in waveform['peaks']:
-        peak_copy = peak.copy()
+    # Log waveform data being returned
+    print(f"\n{'='*60}")
+    print(f"🔍 GET_WAVEFORMS: Returning data for dataset {dataset_id}")
+    print(f"{'='*60}")
+    print(f"Base peaks: {len(base_waveform['peaks'])}")
+    print(f"User peaks: {len(user_waveform['peaks'])}")
+    print(f"AI peaks: {len(ai_waveform['peaks'])}")
+    print(f"Strategy: {ai_waveform.get('strategy', 'MISSING')[:100]}...")
+    print(f"\n📊 AI Peak Sample (first peak):")
+    if ai_waveform['peaks']:
+        peak = ai_waveform['peaks'][0]
+        print(f"  ID: {peak['id']}, Count: {peak['count']}, Weight: {peak['weight']}")
+        print(f"  Label: {peak['label']}, Color: {peak['color']}")
+        print(f"  Reasoning: {peak.get('reasoning', 'MISSING')[:80]}...")
+    print(f"{'='*60}\n")
 
-        # Find matching suggestion
-        suggestion = next(
-            (s for s in latest_suggestions.get('suggestions', []) if s['id'] == peak['id']),
-            None
-        )
-
-        if suggestion:
-            peak_copy['suggestedCount'] = suggestion['suggestedCount']
-            peak_copy['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
-            peak_copy['reasoning'] = suggestion.get('reasoning', '')
-
-        result['peaks'].append(peak_copy)
-
-    return result
+    return {
+        'base': base_waveform,
+        'user': user_waveform,
+        'ai': ai_waveform,
+        'metrics': metrics,
+        'strategy': ai_waveform.get('strategy', '')
+    }
 
 
 @app.get("/api/waveform/{dataset_id}")
 async def get_waveform(dataset_id: str):
-    """Get waveform data for a dataset."""
+    """Get all waveforms for a dataset."""
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    return get_waveform_with_suggestions(dataset_id)
+    return get_all_waveforms(dataset_id)
 
 
 @app.post("/api/adjust/{dataset_id}")
 async def adjust_counts(dataset_id: str, request: AdjustmentRequest):
-    """Adjust peak selected counts and/or weights (user manual adjustments only)."""
+    """Adjust user waveform counts and/or weights."""
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    waveform = datasets[dataset_id]['waveform']
-    peak_ids = {peak['id'] for peak in waveform['peaks']}
+    base_waveform = datasets[dataset_id]['base_waveform']
+    user_waveform = datasets[dataset_id]['user_waveform']
+    peak_ids = {peak['id'] for peak in user_waveform['peaks']}
 
     # Validate cluster IDs exist and values are within valid range
     for adjustment in request.adjustments:
         if adjustment.id not in peak_ids:
             raise HTTPException(status_code=400, detail=f"Cluster {adjustment.id} not found")
 
-        # Find the peak to validate adjustment
-        peak = next((p for p in waveform['peaks'] if p['id'] == adjustment.id), None)
-        if peak:
-            if adjustment.selectedCount is not None and adjustment.selectedCount > peak['sampleCount']:
+        # Find the base peak to validate adjustment
+        base_peak = next((p for p in base_waveform['peaks'] if p['id'] == adjustment.id), None)
+        if base_peak:
+            if adjustment.count is not None and adjustment.count > base_peak['sampleCount']:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Selected count ({adjustment.selectedCount}) cannot exceed sample count ({peak['sampleCount']})"
+                    detail=f"Count ({adjustment.count}) cannot exceed sample count ({base_peak['sampleCount']})"
                 )
-            # Weight validation is handled by Pydantic (0.1-5.0)
+            # Weight validation is handled by Pydantic (0.01-2.0)
 
-    # Update ONLY user-controlled values: selectedCount and weight
-    # DO NOT touch suggestedCount/suggestedWeight (those come from latest_ai_suggestions)
+    # Update user waveform
     for adjustment in request.adjustments:
-        for peak in waveform['peaks']:
+        for peak in user_waveform['peaks']:
             if peak['id'] == adjustment.id:
-                if adjustment.selectedCount is not None:
-                    peak['selectedCount'] = adjustment.selectedCount
+                if adjustment.count is not None:
+                    peak['count'] = adjustment.count
                 if adjustment.weight is not None:
                     peak['weight'] = adjustment.weight
                 break
 
-    # Recalculate metrics based on selection ratios
-    selection_ratios = [
-        peak['selectedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
-        for peak in waveform['peaks']
-    ]
-    gini = calculate_gini_coefficient(selection_ratios)
-
-    waveform['metrics'] = {
-        "giniCoefficient": float(gini),
-        "flatnessScore": float(1 - gini),
-        "avgAmplitude": float(sum(selection_ratios) / len(selection_ratios))
-    }
-
-    # Return merged view with latest AI suggestions
-    return get_waveform_with_suggestions(dataset_id)
+    # Return all waveforms
+    print(f"\n🔍 ADJUST: Returning updated waveforms with AI suggestions")
+    result = get_all_waveforms(dataset_id)
+    print(f"AI peaks in response: {len(result['ai']['peaks'])}")
+    return result
 
 
 @app.get("/api/export/{dataset_id}")
 async def export_dataset(dataset_id: str):
-    """Export pruned dataset based on selectedCount and weights per cluster."""
+    """Export pruned dataset based on user waveform counts and weights."""
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     try:
         df = datasets[dataset_id]['df'].copy()
         clusters = datasets[dataset_id]['clusters']
-        waveform = datasets[dataset_id]['waveform']
+        user_waveform = datasets[dataset_id]['user_waveform']
 
-        # Create selectedCount and weight mapping
-        selected_map = {peak['id']: peak['selectedCount'] for peak in waveform['peaks']}
-        weight_map = {peak['id']: peak.get('weight', 1.0) for peak in waveform['peaks']}
+        # Create count and weight mapping from user waveform
+        count_map = {peak['id']: peak['count'] for peak in user_waveform['peaks']}
+        weight_map = {peak['id']: peak['weight'] for peak in user_waveform['peaks']}
 
         # Check if any non-default weights are set (not all 1.0)
         has_weights = any(w != 1.0 for w in weight_map.values())
 
-        # Prune dataset: keep only selectedCount rows per cluster
+        # Prune dataset: keep only count rows per cluster
         selected_indices = []
         random.seed(42)  # For reproducibility
 
@@ -312,29 +370,28 @@ async def export_dataset(dataset_id: str):
             cluster_mask = clusters == cluster_id
             cluster_indices = df[cluster_mask].index.tolist()
 
-            # Get selected count for this cluster
-            selected_count = selected_map.get(cluster_id, len(cluster_indices))
-            selected_count = min(selected_count, len(cluster_indices))
+            # Get count for this cluster
+            count = count_map.get(cluster_id, len(cluster_indices))
+            count = min(count, len(cluster_indices))
 
             # Apply weighted sampling if weights are set
-            if has_weights and selected_count > 0:
+            if has_weights and count > 0:
                 weight = weight_map.get(cluster_id, 1.0)
                 # Convert weight to sampling probability (higher weight = more samples)
-                # Scale selected_count by weight, but respect the original selectedCount as max
-                weighted_count = int(selected_count * weight)
+                weighted_count = int(count * weight)
                 # Clamp to available cluster size
                 weighted_count = min(weighted_count, len(cluster_indices))
                 # Use at least 1 sample if weight > 0 and original count > 0
-                if weight > 0 and selected_count > 0:
+                if weight > 0 and count > 0:
                     weighted_count = max(1, weighted_count)
 
                 if weighted_count > 0:
                     sampled_indices = random.sample(cluster_indices, weighted_count)
                     selected_indices.extend(sampled_indices)
             else:
-                # Standard sampling based on selectedCount only
-                if selected_count > 0:
-                    sampled_indices = random.sample(cluster_indices, selected_count)
+                # Standard sampling based on count only
+                if count > 0:
+                    sampled_indices = random.sample(cluster_indices, count)
                     selected_indices.extend(sampled_indices)
 
         # Create pruned dataframe with selected rows
@@ -366,7 +423,8 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
     try:
         dataset_info = datasets[dataset_id]
         df = dataset_info['df']
-        waveform = dataset_info['waveform']
+        base_waveform = dataset_info['base_waveform']
+        user_waveform = dataset_info['user_waveform']
 
         # Store user message
         user_message = {
@@ -380,7 +438,7 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         await asyncio.sleep(1.0)
 
         # Generate chat response using AI
-        response_text = await generate_chat_response(df, waveform, request.message)
+        response_text = await generate_chat_response(df, base_waveform, user_waveform, request.message)
 
         # Check if user is asking for balance adjustments
         should_generate_suggestions = await detect_balance_request(request.message)
@@ -390,15 +448,25 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         if should_generate_suggestions:
             print("✅ Generating new balance suggestions...")
             try:
-                # Use AI to generate suggestions based on user request, WITH initial AND latest AI baselines
-                initial_ai_suggestions = dataset_info.get('initial_ai_suggestions')
-                latest_ai_suggestions = dataset_info.get('latest_ai_suggestions')
-                suggestions_data = await suggest_balance(df, waveform, request.message, initial_ai_suggestions, latest_ai_suggestions)
+                # Use AI to generate suggestions based on user request
+                ai_waveform = dataset_info['ai_waveform']
+                suggestions_data = await suggest_balance(df, base_waveform, user_waveform, request.message, ai_waveform)
 
-                # Store as latest AI suggestions (separate from waveform)
-                # This becomes the new source of truth for suggestedCount/suggestedWeight
-                datasets[dataset_id]['latest_ai_suggestions'] = suggestions_data
-                print(f"✅ Generated and stored {len(suggestions_data.get('suggestions', []))} AI suggestions")
+                # Create AI waveform from suggestions and update stored version
+                new_ai_waveform = create_ai_waveform_from_suggestions(base_waveform, suggestions_data)
+                datasets[dataset_id]['ai_waveform'] = new_ai_waveform
+                print(f"✅ Generated and stored {len(new_ai_waveform['peaks'])} AI suggestions")
+
+                # Log new AI suggestion details
+                print(f"\n{'='*60}")
+                print(f"🔍 CHAT: New AI suggestions generated")
+                print(f"{'='*60}")
+                print(f"New AI waveform peaks: {len(new_ai_waveform['peaks'])}")
+                print(f"New strategy: {new_ai_waveform.get('strategy', 'MISSING')[:100]}...")
+                for i, peak in enumerate(new_ai_waveform['peaks'][:2]):
+                    print(f"  Peak {i}: count={peak['count']}, weight={peak['weight']}")
+                print(f"Stored in datasets[{dataset_id}]['ai_waveform']")
+                print(f"{'='*60}\n")
             except Exception as e:
                 print(f"❌ Failed to generate suggestions: {str(e)}")
                 # Continue without updating suggestions if generation fails
@@ -411,13 +479,13 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         }
         datasets[dataset_id]['chat_history'].append(assistant_message)
 
-        # Return merged waveform with latest AI suggestions (if suggestions were generated)
-        suggestions_waveform = get_waveform_with_suggestions(dataset_id) if should_generate_suggestions else None
+        # Return all waveforms if suggestions were generated
+        all_waveforms = get_all_waveforms(dataset_id) if should_generate_suggestions else None
 
-        print(f"📤 Returning chat response with suggestions: {suggestions_waveform is not None}")
+        print(f"📤 Returning chat response with suggestions: {all_waveforms is not None}")
         return ChatResponse(
             response=response_text,
-            suggestions=suggestions_waveform
+            suggestions=all_waveforms
         )
 
     except Exception as e:
@@ -436,56 +504,18 @@ async def suggest_balance_endpoint(dataset_id: str):
     try:
         dataset_info = datasets[dataset_id]
         df = dataset_info['df']
-        waveform = dataset_info['waveform']
+        base_waveform = dataset_info['base_waveform']
+        user_waveform = dataset_info['user_waveform']
+        ai_waveform = dataset_info['ai_waveform']
 
         # Get suggestions
-        suggestions_data = await suggest_balance(df, waveform)
+        suggestions_data = await suggest_balance(df, base_waveform, user_waveform, None, ai_waveform)
 
-        # Apply suggestions to create suggested waveform
-        suggested_waveform = {
-            'peaks': [],
-            'totalPoints': waveform['totalPoints'],
-            'metrics': {},
-            'strategy': suggestions_data.get('overall_strategy', 'AI-suggested balance')
-        }
+        # Create and store updated AI waveform
+        new_ai_waveform = create_ai_waveform_from_suggestions(base_waveform, suggestions_data)
+        datasets[dataset_id]['ai_waveform'] = new_ai_waveform
 
-        # Create suggested peaks
-        for peak in waveform['peaks']:
-            suggested_peak = peak.copy()
-
-            # Find suggestion for this cluster
-            suggestion = next(
-                (s for s in suggestions_data['suggestions'] if s['id'] == peak['id']),
-                None
-            )
-
-            if suggestion:
-                suggested_count = min(suggestion['suggestedCount'], peak['sampleCount'])
-                suggested_count = max(0, suggested_count)
-                suggested_peak['suggestedCount'] = suggested_count
-                suggested_peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
-                suggested_peak['reasoning'] = suggestion.get('reasoning', '')
-            else:
-                suggested_peak['suggestedCount'] = peak['selectedCount']
-                suggested_peak['suggestedWeight'] = peak.get('weight', 1.0)
-                suggested_peak['reasoning'] = 'No change suggested'
-
-            suggested_waveform['peaks'].append(suggested_peak)
-
-        # Calculate metrics for suggested distribution
-        suggestion_ratios = [
-            peak['suggestedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
-            for peak in suggested_waveform['peaks']
-        ]
-        gini = calculate_gini_coefficient(suggestion_ratios)
-
-        suggested_waveform['metrics'] = {
-            "giniCoefficient": float(gini),
-            "flatnessScore": float(1 - gini),
-            "avgAmplitude": float(sum(suggestion_ratios) / len(suggestion_ratios))
-        }
-
-        return suggested_waveform
+        return get_all_waveforms(dataset_id)
 
     except Exception as e:
         import traceback

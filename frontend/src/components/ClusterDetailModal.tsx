@@ -1,9 +1,9 @@
 'use client';
 
-import { ClusterPeak } from '@/types';
+import { BasePeak } from '@/types';
 
 interface ClusterDetailModalProps {
-  cluster: ClusterPeak | null;
+  cluster: BasePeak | null;
   onClose: () => void;
 }
 
@@ -43,8 +43,8 @@ export default function ClusterDetailModal({ cluster, onClose }: ClusterDetailMo
             <div className="text-xl font-semibold mt-1">{cluster.sampleCount.toLocaleString()}</div>
           </div>
           <div className="bg-black/30 rounded p-3">
-            <div className="text-white/60 text-sm">Selected Count</div>
-            <div className="text-xl font-semibold mt-1">{(cluster.selectedCount ?? cluster.sampleCount).toLocaleString()} / {cluster.sampleCount.toLocaleString()}</div>
+            <div className="text-white/60 text-sm">Current Count</div>
+            <div className="text-xl font-semibold mt-1">{cluster.count.toLocaleString()} / {cluster.sampleCount.toLocaleString()}</div>
           </div>
         </div>
 

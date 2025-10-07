@@ -2,29 +2,47 @@
  * TypeScript interfaces for Level waveform visualizer
  */
 
-export interface ClusterPeak {
+// Individual peak structure for each waveform type
+export interface WaveformPeak {
   id: number;
-  x: number;              // 0-1 position along waveform
-  selectedCount: number;  // Number of datapoints selected (0 to sampleCount)
-  suggestedCount?: number;  // AI-suggested count for this cluster
-  weight?: number;        // Weight for this cluster (0.01 to 2.0, default 1.0)
-  suggestedWeight?: number;  // AI-suggested weight for this cluster (0.01 to 2.0)
-  reasoning?: string;     // AI reasoning for suggestion
-  label: string;          // Gemini-generated description
-  color: string;          // Hex color for visualization
-  sampleCount: number;    // Total number of data points in cluster
-  samples: string[];      // Representative samples for tooltip
+  x: number;       // 0-1 position along waveform
+  count: number;   // Number of datapoints
+  weight: number;  // Weight for this cluster (0.01 to 2.0)
+  label: string;   // Gemini-generated description
+  color: string;   // Hex color for visualization
+  reasoning?: string;  // AI reasoning (for AI waveform only)
 }
 
-export interface WaveformData {
-  peaks: ClusterPeak[];
+// Base waveform peak includes sample metadata
+export interface BasePeak extends WaveformPeak {
+  sampleCount: number;  // Total number of data points in cluster
+  samples: string[];    // Representative samples for tooltip
+}
+
+// Base waveform structure (immutable, original dataset)
+export interface BaseWaveform {
+  peaks: BasePeak[];
   totalPoints: number;
+}
+
+// User and AI waveforms have simpler structure
+export interface Waveform {
+  peaks: WaveformPeak[];
+  totalPoints: number;
+  strategy?: string;  // AI strategy (for AI waveform only)
+}
+
+// Response from backend with all three waveforms
+export interface AllWaveformsResponse {
+  base: BaseWaveform;
+  user: Waveform;
+  ai: Waveform;
   metrics: {
     giniCoefficient: number;
     flatnessScore: number;
-    avgAmplitude: number;  // Average selection ratio (selectedCount/sampleCount)
+    avgAmplitude: number;
   };
-  strategy?: string;  // AI strategy description (for suggestions)
+  strategy: string;
 }
 
 // Waveform mode
@@ -34,7 +52,7 @@ export type WaveformMode = 'count' | 'weight';
 export interface AdjustmentRequest {
   adjustments: Array<{
     id: number;
-    selectedCount?: number;
+    count?: number;
     weight?: number;
   }>;
 }
@@ -69,5 +87,5 @@ export interface ChatRequest {
 
 export interface ChatResponse {
   response: string;
-  suggestions?: WaveformData;  // Optional waveform suggestions from chat
+  suggestions?: AllWaveformsResponse;  // Optional waveform suggestions from chat
 }

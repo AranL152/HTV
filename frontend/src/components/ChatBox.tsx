@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
-import type { ChatMessage, WaveformData } from '@/types';
+import type { ChatMessage, AllWaveformsResponse } from '@/types';
 
 interface ChatBoxProps {
   datasetId: string;
-  onSuggestionsReceived?: (data: WaveformData) => void;
+  onSuggestionsReceived?: (data: AllWaveformsResponse) => void;
 }
 
 export default function ChatBox({ datasetId, onSuggestionsReceived }: ChatBoxProps) {
@@ -63,10 +63,12 @@ export default function ChatBox({ datasetId, onSuggestionsReceived }: ChatBoxPro
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // If chat response includes new suggestions, update waveform
-      if (response.suggestions && onSuggestionsReceived) {
+      // If chat response includes new suggestions, always update waveform
+      if (response.suggestions) {
         console.log('📊 Chat suggestions received:', response.suggestions);
-        onSuggestionsReceived(response.suggestions);
+        if (onSuggestionsReceived) {
+          onSuggestionsReceived(response.suggestions);
+        }
       } else {
         console.log('ℹ️ No suggestions in chat response');
       }

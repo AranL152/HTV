@@ -99,29 +99,9 @@ def build_waveform(
     # Sort peaks by x position for rendering
     peaks.sort(key=lambda p: p["x"])
 
-    # Calculate metrics based on selection ratios
-    selection_ratios = np.array([
-        peak["selectedCount"] / peak["sampleCount"] if peak["sampleCount"] > 0 else 1.0
-        for peak in peaks
-    ])
-
-    gini = calculate_gini_coefficient(selection_ratios)
-    avg_ratio = selection_ratios.mean()
-
-    # Ensure no NaN values in metrics
-    gini_val = float(gini) if not np.isnan(gini) else 0.0
-    avg_val = float(avg_ratio) if not np.isnan(avg_ratio) else 1.0
-
-    metrics = {
-        "giniCoefficient": gini_val,
-        "flatnessScore": 1.0 - gini_val,
-        "avgAmplitude": avg_val  # Average selection ratio across clusters
-    }
-
     return {
         "peaks": peaks,
-        "totalPoints": int(len(clusters)),
-        "metrics": metrics
+        "totalPoints": int(len(clusters))
     }
 
 

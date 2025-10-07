@@ -1,51 +1,70 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { WaveformData, WaveformMode } from '@/types';
+import { BaseWaveform, Waveform as WaveformType, AllWaveformsResponse, WaveformMode } from '@/types';
 import { apiClient } from '@/lib/api-client';
 
 interface WaveformProps {
   datasetId: string;
-  initialData: WaveformData;
-  onDataUpdate: (data: WaveformData) => void;
+  baseData: BaseWaveform;
+  userData: WaveformType;
+  aiData: WaveformType;
+  onDataUpdate: (data: AllWaveformsResponse) => void;
   onClusterClick?: (peakId: number) => void;
   mode: WaveformMode;
 }
 
-export default function Waveform({ datasetId, initialData, onDataUpdate, onClusterClick, mode }: WaveformProps) {
+export default function Waveform({ datasetId, baseData, userData, aiData, onDataUpdate, onClusterClick, mode }: WaveformProps) {
   // Local state synced from parent - allows re-renders during drag
-  const [data, setData] = useState<WaveformData>(initialData);
+  const [localUserData, setLocalUserData] = useState<WaveformType>(userData);
   const [draggingPeak, setDraggingPeak] = useState<number | null>(null);
   const [hoveredPeak, setHoveredPeak] = useState<number | null>(null);
   const [hasDragged, setHasDragged] = useState(false);
   // Temporary state for optimistic drag updates before API sync
-  const [tempDragData, setTempDragData] = useState<WaveformData | null>(null);
+  const [tempUserData, setTempUserData] = useState<WaveformType | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Sync with parent when initialData changes (from chat or mode switch)
+  // Log props for debugging
   useEffect(() => {
-    setData(initialData);
-    setTempDragData(null); // Clear temp drag state on parent update
-  }, [initialData]);
+    console.log('\n' + '='.repeat(60));
+    console.log('🔍 WAVEFORM: Props received');
+    console.log('='.repeat(60));
+    console.log('Base peaks:', baseData.peaks.length);
+    console.log('User peaks:', userData.peaks.length);
+    console.log('AI peaks:', aiData.peaks.length);
+    console.log('\n📊 AI Peak Sample (first peak):');
+    if (aiData.peaks.length > 0) {
+      const peak = aiData.peaks[0];
+      console.log(`  ID: ${peak.id}, Count: ${peak.count}, Weight: ${peak.weight}`);
+      console.log(`  Label: ${peak.label}, Color: ${peak.color}`);
+      console.log(`  X position: ${peak.x}`);
+    }
+    console.log('='.repeat(60) + '\n');
+  }, [baseData, userData, aiData]);
 
-  // Use temp drag data while dragging, otherwise use synced data
-  const displayData = tempDragData || data;
+  // Sync with parent when userData changes (from chat or mode switch)
+  useEffect(() => {
+    setLocalUserData(userData);
+    setTempUserData(null); // Clear temp drag state on parent update
+  }, [userData]);
+
+  // Use temp user data while dragging, otherwise use synced data
+  const displayUserData = tempUserData || localUserData;
 
   const width = 1100;
   const height = 700;
   const padding = 100;
 
-  const generateSmoothPath = () => {
-    if (displayData.peaks.length === 0) return "";
+  const generateUserPath = () => {
+    if (displayUserData.peaks.length === 0) return "";
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
-      const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
+      const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
 
-      const points = displayData.peaks.map((p) => {
+      const points = displayUserData.peaks.map((p) => {
         // Calculate ratio based on absolute count vs max count
-        const selectedCount = p.selectedCount ?? p.sampleCount;
-        const ratio = maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
+        const ratio = maxSampleCount > 0 ? p.count / maxSampleCount : 1;
         return {
           x: p.x * (width - 2 * padding) + padding,
           y: (1 - ratio) * (height - 2 * padding) + padding,
@@ -68,10 +87,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
       const minWeight = 0.01;
       const maxWeight = 2;
 
-      const points = displayData.peaks.map((p) => {
-        const weight = p.weight ?? 1.0;
+      const points = displayUserData.peaks.map((p) => {
         // Normalize to 0-1 range where 0.01 = bottom, 1.0 ≈ middle, 2.0 = top
-        const ratio = (weight - minWeight) / (maxWeight - minWeight);
+        const ratio = (p.weight - minWeight) / (maxWeight - minWeight);
         return {
           x: p.x * (width - 2 * padding) + padding,
           y: (1 - ratio) * (height - 2 * padding) + padding,
@@ -92,15 +110,15 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     }
   };
 
-  const generateGhostPath = () => {
-    if (displayData.peaks.length === 0) return "";
+  const generateBasePath = () => {
+    if (baseData.peaks.length === 0) return "";
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
-      const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
+      const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
 
-      const points = displayData.peaks.map((p) => {
-        // Always use original sampleCount for ghost path
+      const points = baseData.peaks.map((p) => {
+        // Always use original sampleCount for base path
         const ratio = maxSampleCount > 0 ? p.sampleCount / maxSampleCount : 1;
         return {
           x: p.x * (width - 2 * padding) + padding,
@@ -125,7 +143,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
       const minWeight = 0.01;
       const maxWeight = 2;
 
-      const points = displayData.peaks.map((p) => {
+      const points = baseData.peaks.map((p) => {
         // Baseline 1.0 maps to near middle
         const ratio = (baselineWeight - minWeight) / (maxWeight - minWeight);
         return {
@@ -148,24 +166,21 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     }
   };
 
-  const generateSuggestedPath = () => {
-    if (displayData.peaks.length === 0) return "";
+  const generateAiPath = () => {
+    console.log('🎨 Generating AI path...');
+    console.log(`  AI peaks count: ${aiData.peaks.length}`);
 
-    // Check if any peak has suggested counts or weights
-    const hasSuggestions = mode === 'count'
-      ? displayData.peaks.some(p => p.suggestedCount !== undefined)
-      : displayData.peaks.some(p => p.suggestedWeight !== undefined);
-
-    if (!hasSuggestions) return '';
+    if (aiData.peaks.length === 0) {
+      console.log('  ⚠️ No AI peaks - returning empty path');
+      return "";
+    }
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
-      const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
+      const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
 
-      const points = displayData.peaks.map((p) => {
-        // Use suggestedCount if available, fallback to selectedCount
-        const suggestedCount = p.suggestedCount ?? p.selectedCount;
-        const ratio = maxSampleCount > 0 ? suggestedCount / maxSampleCount : 1;
+      const points = aiData.peaks.map((p) => {
+        const ratio = maxSampleCount > 0 ? p.count / maxSampleCount : 1;
         return {
           x: p.x * (width - 2 * padding) + padding,
           y: (1 - ratio) * (height - 2 * padding) + padding,
@@ -182,15 +197,15 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
       }
 
+      console.log(`  ✅ AI path generated (count mode): ${path.substring(0, 50)}...`);
       return path;
     } else {
       // Weight mode - fixed scale 0.01 to 2
       const minWeight = 0.01;
       const maxWeight = 2;
 
-      const points = displayData.peaks.map((p) => {
-        const suggestedWeight = p.suggestedWeight ?? (p.weight ?? 1.0);
-        const ratio = (suggestedWeight - minWeight) / (maxWeight - minWeight);
+      const points = aiData.peaks.map((p) => {
+        const ratio = (p.weight - minWeight) / (maxWeight - minWeight);
         return {
           x: p.x * (width - 2 * padding) + padding,
           y: (1 - ratio) * (height - 2 * padding) + padding,
@@ -207,6 +222,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         path += ` C ${prev.x + dx},${prev.y} ${curr.x - dx},${curr.y} ${curr.x},${curr.y}`;
       }
 
+      console.log(`  ✅ AI path generated (weight mode): ${path.substring(0, 50)}...`);
       return path;
     }
   };
@@ -225,21 +241,25 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     const normalizedY = (y - padding) / (height - 2 * padding);
     const ratio = Math.max(0, Math.min(1, 1 - normalizedY));
 
-    // Update temporary drag state for immediate visual feedback
-    setTempDragData((prevData) => {
-      const baseData = prevData || data;
+    // Update temporary user data for immediate visual feedback
+    setTempUserData((prevData) => {
+      const currentData = prevData || localUserData;
 
       if (mode === 'count') {
         const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
 
         return {
-          ...baseData,
-          peaks: baseData.peaks.map((peak) => {
+          ...currentData,
+          peaks: currentData.peaks.map((peak) => {
             if (peak.id === draggingPeak) {
+              // Find corresponding base peak to get sampleCount limit
+              const basePeak = baseData.peaks.find(p => p.id === peak.id);
+              if (!basePeak) return peak;
+
               // Calculate count based on ratio relative to max, but clamp to peak's sampleCount
               const absoluteCount = Math.round(ratio * maxSampleCount);
-              const newSelectedCount = Math.min(absoluteCount, peak.sampleCount);
-              return { ...peak, selectedCount: newSelectedCount };
+              const newCount = Math.min(absoluteCount, basePeak.sampleCount);
+              return { ...peak, count: newCount };
             }
             return peak;
           }),
@@ -250,8 +270,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const maxWeight = 2;
 
         return {
-          ...baseData,
-          peaks: baseData.peaks.map((peak) => {
+          ...currentData,
+          peaks: currentData.peaks.map((peak) => {
             if (peak.id === draggingPeak) {
               // Calculate weight based on ratio (0.01 to 2 range)
               const newWeight = minWeight + ratio * (maxWeight - minWeight);
@@ -271,9 +291,9 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     const peakId = draggingPeak;
     const wasDragged = hasDragged;
 
-    // Get the adjusted peak from temp drag data if available
-    const currentData = tempDragData || data;
-    const adjustedPeak = currentData.peaks.find((p) => p.id === draggingPeak);
+    // Get the adjusted peak from temp user data if available
+    const currentUserData = tempUserData || localUserData;
+    const adjustedPeak = currentUserData.peaks.find((p) => p.id === draggingPeak);
 
     if (!adjustedPeak) return;
 
@@ -281,23 +301,21 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     if (!wasDragged && onClusterClick) {
       onClusterClick(peakId);
       setDraggingPeak(null);
-      setTempDragData(null);
+      setTempUserData(null);
       return;
     }
 
     // Otherwise, sync with backend and update parent state
     try {
       if (mode === 'count') {
-        const selectedCount = adjustedPeak.selectedCount ?? adjustedPeak.sampleCount;
         const updatedData = await apiClient.adjustAmplitudes(datasetId, {
-          adjustments: [{ id: adjustedPeak.id, selectedCount }],
+          adjustments: [{ id: adjustedPeak.id, count: adjustedPeak.count }],
         });
 
         onDataUpdate(updatedData);
       } else {
-        const weight = adjustedPeak.weight ?? 1.0;
         const updatedData = await apiClient.adjustAmplitudes(datasetId, {
-          adjustments: [{ id: adjustedPeak.id, weight }],
+          adjustments: [{ id: adjustedPeak.id, weight: adjustedPeak.weight }],
         });
 
         onDataUpdate(updatedData);
@@ -307,8 +325,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     }
 
     setDraggingPeak(null);
-    setTempDragData(null);
-  }, [draggingPeak, hasDragged, tempDragData, data, mode, onClusterClick, datasetId, onDataUpdate]);
+    setTempUserData(null);
+  }, [draggingPeak, hasDragged, tempUserData, localUserData, mode, onClusterClick, datasetId, onDataUpdate]);
 
   const handleMouseUp = async () => {
     await finishDrag();
@@ -330,45 +348,43 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {/* Ghost waveform path (original cluster sizes) */}
+        {/* Base waveform path (original cluster sizes) */}
         <path
-          d={generateGhostPath()}
+          d={generateBasePath()}
           stroke="#808080"
           strokeWidth={2}
           fill="none"
         />
 
-        {/* AI Suggested waveform path */}
-        {generateSuggestedPath() && (
-          <path
-            d={generateSuggestedPath()}
-            stroke="#808080"
-            strokeWidth={2}
-            fill="none"
-            strokeDasharray="5,5"
-          />
-        )}
-
-        {/* Smooth waveform path (current selected counts) */}
+        {/* AI waveform path */}
         <path
-          d={generateSmoothPath()}
+          d={generateAiPath()}
+          stroke="#9ca3af"
+          strokeWidth={2}
+          fill="none"
+          strokeDasharray="5,5"
+        />
+
+        {/* User waveform path (current user adjustments) */}
+        <path
+          d={generateUserPath()}
           stroke="#ffffff"
           strokeWidth={2}
           fill="none"
         />
 
-        {/* Ghost peak markers (original cluster sizes or baseline weight) */}
+        {/* Base peak markers (original cluster sizes or baseline weight) */}
         {(() => {
           if (mode === 'count') {
-            const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
-            return displayData.peaks.map((peak) => {
+            const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
+            return baseData.peaks.map((peak) => {
               const ratio = maxSampleCount > 0 ? peak.sampleCount / maxSampleCount : 1;
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
               return (
                 <circle
-                  key={`ghost-${peak.id}`}
+                  key={`base-${peak.id}`}
                   cx={x}
                   cy={y}
                   r={6}
@@ -384,14 +400,14 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             const baselineWeight = 1.0;
             const minWeight = 0.01;
             const maxWeight = 2;
-            return displayData.peaks.map((peak) => {
+            return baseData.peaks.map((peak) => {
               const ratio = (baselineWeight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
               return (
                 <circle
-                  key={`ghost-${peak.id}`}
+                  key={`base-${peak.id}`}
                   cx={x}
                   cy={y}
                   r={6}
@@ -405,31 +421,23 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
           }
         })()}
 
-        {/* AI Suggested peak markers */}
+        {/* AI peak markers */}
         {(() => {
-          const hasSuggestions = mode === 'count'
-            ? displayData.peaks.some(p => p.suggestedCount !== undefined)
-            : displayData.peaks.some(p => p.suggestedWeight !== undefined);
-
-          if (!hasSuggestions) return null;
-
           if (mode === 'count') {
-            const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
-            return displayData.peaks.map((peak) => {
-              if (peak.suggestedCount === undefined) return null;
-
-              const ratio = maxSampleCount > 0 ? peak.suggestedCount / maxSampleCount : 1;
+            const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
+            return aiData.peaks.map((peak) => {
+              const ratio = maxSampleCount > 0 ? peak.count / maxSampleCount : 1;
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
               return (
                 <circle
-                  key={`suggested-${peak.id}`}
+                  key={`ai-${peak.id}`}
                   cx={x}
                   cy={y}
                   r={5}
-                  fill="#808080"
-                  stroke="#808080"
+                  fill="#9ca3af"
+                  stroke="#9ca3af"
                   strokeWidth={1}
                   className="pointer-events-none"
                 />
@@ -439,21 +447,19 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             // Weight mode - fixed scale 0.01 to 2
             const minWeight = 0.01;
             const maxWeight = 2;
-            return displayData.peaks.map((peak) => {
-              if (peak.suggestedWeight === undefined) return null;
-
-              const ratio = (peak.suggestedWeight - minWeight) / (maxWeight - minWeight);
+            return aiData.peaks.map((peak) => {
+              const ratio = (peak.weight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
 
               return (
                 <circle
-                  key={`suggested-${peak.id}`}
+                  key={`ai-${peak.id}`}
                   cx={x}
                   cy={y}
                   r={5}
-                  fill="#808080"
-                  stroke="#808080"
+                  fill="#9ca3af"
+                  stroke="#9ca3af"
                   strokeWidth={1}
                   className="pointer-events-none"
                 />
@@ -462,14 +468,14 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
           }
         })()}
 
-        {/* Peak markers (interactive) - render last for highest z-index */}
+        {/* User peak markers (interactive) - render last for highest z-index */}
         <g className="z-10">
         {(() => {
           if (mode === 'count') {
-            const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
-            return displayData.peaks.map((peak) => {
-              const selectedCount = peak.selectedCount ?? peak.sampleCount;
-              const ratio = maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
+            const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
+            return displayUserData.peaks.map((peak, i) => {
+              const basePeak = baseData.peaks[i];
+              const ratio = maxSampleCount > 0 ? peak.count / maxSampleCount : 1;
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
               const isDragging = draggingPeak === peak.id;
@@ -512,7 +518,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                       fontSize={10}
                       className="pointer-events-none select-none"
                     >
-                      {selectedCount.toLocaleString()} / {peak.sampleCount.toLocaleString()}
+                      {peak.count.toLocaleString()} / {basePeak.sampleCount.toLocaleString()}
                     </text>
                   )}
                 </g>
@@ -522,9 +528,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             // Weight mode - fixed scale 0.01 to 2
             const minWeight = 0.01;
             const maxWeight = 2;
-            return displayData.peaks.map((peak) => {
-              const weight = peak.weight ?? 1.0;
-              const ratio = (weight - minWeight) / (maxWeight - minWeight);
+            return displayUserData.peaks.map((peak) => {
+              const ratio = (peak.weight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
               const isDragging = draggingPeak === peak.id;
@@ -567,7 +572,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
                       fontSize={10}
                       className="pointer-events-none select-none"
                     >
-                      Weight: {weight.toFixed(2)}x
+                      Weight: {peak.weight.toFixed(2)}x
                     </text>
                   )}
                 </g>

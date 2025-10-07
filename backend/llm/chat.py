@@ -8,14 +8,16 @@ from .prompts import build_chat_prompt
 
 async def generate_chat_response(
     df: pd.DataFrame,
-    waveform: dict,
+    base_waveform: dict,
+    user_waveform: dict,
     user_message: str
 ) -> str:
     """Generate chat response about dataset.
 
     Args:
         df: Original DataFrame
-        waveform: Current waveform data
+        base_waveform: Original dataset (immutable)
+        user_waveform: User's current adjustments
         user_message: User's question
 
     Returns:
@@ -25,7 +27,7 @@ async def generate_chat_response(
     context_parts = [
         f"Dataset Overview:",
         f"- Total data points: {len(df)}",
-        f"- Number of clusters: {len(waveform['peaks'])}",
+        f"- Number of clusters: {len(base_waveform['peaks'])}",
         f"- Columns: {', '.join(df.columns.tolist())}",
         f"\nDataset sample (first 5 rows):",
         df.head().to_string(),
@@ -33,25 +35,17 @@ async def generate_chat_response(
     ]
 
     # Add cluster details
-    for peak in waveform['peaks']:
-        selection_ratio = peak['selectedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
+    for i, base_peak in enumerate(base_waveform['peaks']):
+        user_peak = user_waveform['peaks'][i]
+        selection_ratio = user_peak['count'] / base_peak['sampleCount'] if base_peak['sampleCount'] > 0 else 1.0
         context_parts.append(
-            f"\nCluster {peak['id']}:"
-            f"\n  - Label: {peak['label']}"
-            f"\n  - Original dataset: {peak['sampleCount']} samples"
-            f"\n  - User's current selection: {peak['selectedCount']} samples ({selection_ratio:.1%}), weight {peak.get('weight', 1.0):.2f}x"
-            f"\n  - Position: {peak['x']:.2%} along data distribution"
-            f"\n  - Sample examples: {', '.join(peak['samples'][:3])}"
+            f"\nCluster {base_peak['id']}:"
+            f"\n  - Label: {base_peak['label']}"
+            f"\n  - Original dataset: {base_peak['sampleCount']} samples"
+            f"\n  - User's current selection: {user_peak['count']} samples ({selection_ratio:.1%}), weight {user_peak['weight']:.2f}x"
+            f"\n  - Position: {base_peak['x']:.2%} along data distribution"
+            f"\n  - Sample examples: {', '.join(base_peak['samples'][:3])}"
         )
-
-    # Add metrics
-    metrics = waveform['metrics']
-    context_parts.append(
-        f"\n\nCurrent Metrics:"
-        f"\n  - Gini Coefficient: {metrics['giniCoefficient']:.3f}"
-        f"\n  - Flatness Score: {metrics['flatnessScore']:.3f}"
-        f"\n  - Average Amplitude: {metrics['avgAmplitude']:.3f}"
-    )
 
     context = "\n".join(context_parts)
 

@@ -9,15 +9,15 @@ from .client import get_gemini_model
 from .prompts import build_balance_suggestion_prompt, build_detection_prompt
 
 
-async def suggest_balance(df: pd.DataFrame, waveform: dict, user_request: str = None, initial_suggestions: dict = None, latest_suggestions: dict = None) -> dict:
+async def suggest_balance(df: pd.DataFrame, base_waveform: dict, user_waveform: dict, user_request: str = None, ai_waveform: dict = None) -> dict:
     """Generate AI balance suggestions for dataset.
 
     Args:
         df: Original DataFrame
-        waveform: Current waveform data with peaks
+        base_waveform: Original dataset (immutable)
+        user_waveform: User's current adjustments
         user_request: Optional user request to inform suggestions (e.g., "reduce Big Tech")
-        initial_suggestions: Initial AI-generated suggestions (baseline, never modified)
-        latest_suggestions: Latest AI-generated suggestions (from previous chat)
+        ai_waveform: Previous AI suggestions (for context)
 
     Returns:
         Dictionary with suggestions list and overall strategy
@@ -26,72 +26,60 @@ async def suggest_balance(df: pd.DataFrame, waveform: dict, user_request: str = 
     context_parts = [
         f"Dataset Overview:",
         f"- Total data points: {len(df)}",
-        f"- Number of clusters: {len(waveform['peaks'])}",
+        f"- Number of clusters: {len(base_waveform['peaks'])}",
         f"- Columns: {', '.join(df.columns.tolist())}",
         f"\n\nCluster Information (CURRENT STATE):"
     ]
 
-    # Add cluster details with initial AI baseline
-    for peak in waveform['peaks']:
-        selection_ratio = peak['selectedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
+    # Add cluster details
+    for i, base_peak in enumerate(base_waveform['peaks']):
+        user_peak = user_waveform['peaks'][i]
 
-        # Get initial AI suggestion for this cluster (the original AI analysis)
-        initial_ai_info = ""
-        if initial_suggestions:
-            initial_suggestion = next(
-                (s for s in initial_suggestions.get('suggestions', []) if s['id'] == peak['id']),
-                None
-            )
-            if initial_suggestion:
-                initial_count = initial_suggestion.get('suggestedCount', peak['sampleCount'])
-                initial_weight = initial_suggestion.get('suggestedWeight', 1.0)
-                initial_ai_info = f"\n  - Initial AI recommendation (your baseline): {initial_count} samples, weight {initial_weight:.2f}x"
+        # Calculate selection ratio
+        selection_ratio = user_peak['count'] / base_peak['sampleCount'] if base_peak['sampleCount'] > 0 else 1.0
 
-        # Get latest AI suggestion (from previous chat)
-        latest_ai_info = ""
-        if latest_suggestions:
-            latest_suggestion = next(
-                (s for s in latest_suggestions.get('suggestions', []) if s['id'] == peak['id']),
-                None
-            )
-            if latest_suggestion:
-                latest_count = latest_suggestion.get('suggestedCount', peak['sampleCount'])
-                latest_weight = latest_suggestion.get('suggestedWeight', 1.0)
-                latest_ai_info = f"\n  - Latest AI suggestion: {latest_count} samples, weight {latest_weight:.2f}x"
+        # Get previous AI suggestion if available
+        ai_info = ""
+        if ai_waveform:
+            ai_peak = next((p for p in ai_waveform['peaks'] if p['id'] == base_peak['id']), None)
+            if ai_peak:
+                ai_info = f"\n  - Previous AI suggestion: {ai_peak['count']} samples, weight {ai_peak['weight']:.2f}x"
 
         context_parts.append(
-            f"\nCluster {peak['id']} - {peak['label']}:"
-            f"\n  - Original dataset size: {peak['sampleCount']} samples"
-            f"{initial_ai_info}"
-            f"{latest_ai_info}"
-            f"\n  - User's current selection: {peak['selectedCount']} samples ({selection_ratio:.1%}), weight {peak.get('weight', 1.0):.2f}x"
-            f"\n  - Sample examples: {', '.join(peak['samples'][:3])}"
+            f"\nCluster {base_peak['id']} - {base_peak['label']}:"
+            f"\n  - Original dataset size: {base_peak['sampleCount']} samples"
+            f"{ai_info}"
+            f"\n  - User's current selection: {user_peak['count']} samples ({selection_ratio:.1%}), weight {user_peak['weight']:.2f}x"
+            f"\n  - Sample examples: {', '.join(base_peak['samples'][:3])}"
         )
-
-    # Add current metrics
-    metrics = waveform['metrics']
-    context_parts.append(
-        f"\n\nCurrent Balance Metrics:"
-        f"\n  - Gini Coefficient: {metrics['giniCoefficient']:.3f} (lower = more balanced)"
-        f"\n  - Flatness Score: {metrics['flatnessScore']:.3f} (higher = more balanced)"
-    )
 
     context = "\n".join(context_parts)
 
     # Build prompt with optional user request
     prompt = build_balance_suggestion_prompt(context, user_request)
 
-    # Call Gemini API
-    model = get_gemini_model()
+    # Call Gemini API with JSON mode enabled
+    model = get_gemini_model(json_mode=True)
     response = model.generate_content(prompt)
-    response_text = response.text.strip()
 
-    # Extract JSON from code blocks if present
-    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-    if json_match:
-        response_text = json_match.group(1)
+    # Log response details
+    print(f"\n{'='*60}")
+    print(f"🔍 SUGGEST_BALANCE: Gemini Response")
+    print(f"{'='*60}")
+    print(f"Response type: {type(response.text)}")
+    print(f"Response length: {len(response.text)} chars")
+    print(f"First 200 chars: {response.text[:200]}")
+    print(f"Attempting JSON parse...")
 
-    suggestions_data = json.loads(response_text)
+    # Parse JSON directly (no regex needed with JSON mode)
+    suggestions_data = json.loads(response.text)
+
+    print(f"✅ JSON parsed successfully")
+    print(f"Keys: {suggestions_data.keys()}")
+    print(f"Suggestions count: {len(suggestions_data.get('suggestions', []))}")
+    print(f"Strategy: {suggestions_data.get('overall_strategy', 'MISSING')[:100]}...")
+    print(f"{'='*60}\n")
+
     return suggestions_data
 
 

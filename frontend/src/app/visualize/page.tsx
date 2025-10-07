@@ -9,13 +9,17 @@ import MetricsPanel from '@/components/MetricsPanel';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ClusterDetailModal from '@/components/ClusterDetailModal';
 import Header from '@/components/Header';
-import { WaveformData, WaveformMode } from '@/types';
+import { AllWaveformsResponse, BaseWaveform, Waveform as WaveformType, WaveformMode } from '@/types';
 import { apiClient } from '@/lib/api-client';
 
 function VisualizeContent() {
   const searchParams = useSearchParams();
   const datasetId = searchParams.get("id");
-  const [data, setData] = useState<WaveformData | null>(null);
+  const [baseData, setBaseData] = useState<BaseWaveform | null>(null);
+  const [userData, setUserData] = useState<WaveformType | null>(null);
+  const [aiData, setAiData] = useState<WaveformType | null>(null);
+  const [metrics, setMetrics] = useState<AllWaveformsResponse['metrics'] | null>(null);
+  const [strategy, setStrategy] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
@@ -30,8 +34,12 @@ function VisualizeContent() {
 
     const fetchWaveform = async () => {
       try {
-        const waveformData = await apiClient.getWaveform(datasetId);
-        setData(waveformData);
+        const response = await apiClient.getWaveform(datasetId);
+        setBaseData(response.base);
+        setUserData(response.user);
+        setAiData(response.ai);
+        setMetrics(response.metrics);
+        setStrategy(response.strategy);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
@@ -42,33 +50,33 @@ function VisualizeContent() {
     fetchWaveform();
   }, [datasetId]);
 
-  // Merge chat suggestions with current state instead of replacing
-  const mergeSuggestions = (suggestions: WaveformData) => {
-    setData(current => {
-      if (!current) return suggestions;  // Fallback if no current state
+  // Update all waveforms from API response
+  const updateWaveforms = (response: AllWaveformsResponse) => {
+    console.log('\n' + '='.repeat(60));
+    console.log('🔍 VISUALIZE: Updating waveforms from API');
+    console.log('='.repeat(60));
+    console.log('Response keys:', Object.keys(response));
+    console.log('Base peaks:', response.base.peaks.length);
+    console.log('User peaks:', response.user.peaks.length);
+    console.log('AI peaks:', response.ai.peaks.length);
+    console.log('Strategy:', response.strategy.substring(0, 100) + '...');
+    console.log('Setting state...');
 
-      return {
-        ...current,
-        peaks: current.peaks.map(peak => {
-          const newSuggestion = suggestions.peaks.find(p => p.id === peak.id);
-          return newSuggestion ? {
-            ...peak,  // Preserve selectedCount, weight (user's manual adjustments)
-            suggestedCount: newSuggestion.suggestedCount,  // Update AI suggestion
-            suggestedWeight: newSuggestion.suggestedWeight,  // Update AI weight suggestion
-            reasoning: newSuggestion.reasoning  // Update reasoning
-          } : peak;
-        }),
-        strategy: suggestions.strategy,  // Update overall strategy
-        metrics: suggestions.metrics  // Update metrics based on suggestions
-      };
-    });
+    setBaseData(response.base);
+    setUserData(response.user);
+    setAiData(response.ai);
+    setMetrics(response.metrics);
+    setStrategy(response.strategy);
+
+    console.log('✅ State updated');
+    console.log('='.repeat(60) + '\n');
   };
 
   if (loading) {
     return <LoadingSpinner />;
   }
 
-  if (error || !data || !datasetId) {
+  if (error || !baseData || !userData || !aiData || !metrics || !datasetId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <div className="text-red-500 text-center">
@@ -103,8 +111,10 @@ function VisualizeContent() {
               </div>
               <Waveform
                 datasetId={datasetId}
-                initialData={data}
-                onDataUpdate={setData}
+                baseData={baseData}
+                userData={userData}
+                aiData={aiData}
+                onDataUpdate={updateWaveforms}
                 onClusterClick={setSelectedClusterId}
                 mode={mode}
               />
@@ -112,15 +122,19 @@ function VisualizeContent() {
 
             {/* Metrics Panel */}
             <MetricsPanel
-              data={data}
+              baseData={baseData}
+              userData={userData}
+              aiData={aiData}
+              metrics={metrics}
+              strategy={strategy}
               datasetId={datasetId}
-              onSuggestionsReceived={mergeSuggestions}
+              onSuggestionsReceived={updateWaveforms}
               mode={mode}
             />
           </div>
 
           <ClusterDetailModal
-            cluster={data.peaks.find((p) => p.id === selectedClusterId) || null}
+            cluster={baseData.peaks.find((p) => p.id === selectedClusterId) || null}
             onClose={() => setSelectedClusterId(null)}
           />
         </div>

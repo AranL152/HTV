@@ -137,8 +137,12 @@ CLUSTER-SPECIFIC SUGGESTIONS (use as anchors):
   Reasoning: "Entry-level diversity important. Preserve for career-stage balance."
 
 CONSTRAINTS:
-- selectedCount must be between 0 and sampleCount
-- suggestedWeight must be between 0.01 and 2.0
+- suggestedCount CANNOT EXCEED sampleCount (the original dataset size for that cluster)
+- If user requests INCREASING a cluster beyond its maximum available samples:
+  * Set suggestedCount = sampleCount (use all available samples at maximum)
+  * Increase suggestedWeight to amplify influence (effective influence = count × weight)
+  * Example: To boost a 360-sample cluster → suggestedCount: 360, suggestedWeight: 1.5 (540 effective influence)
+- suggestedWeight must be between 0.01 and 2.0 (max 2x multiplier)
 - DO NOT flatten everything—maintain strategic imbalances where scientifically justified
 - Explain reasoning using scientific vs political bias framework
 
@@ -168,7 +172,10 @@ User Question: {user_question}
 IMPORTANT: When the user asks to adjust, reduce, increase, or rebalance ANY cluster or the dataset:
 1. Acknowledge their request
 2. Tell them you're generating new suggestions
-3. Explain what changes you're making using the ACTUAL numbers from your analysis (include the specific cluster name, current count, and your suggested count/weight)
+3. Explain what changes you're making using the ACTUAL numbers from your analysis:
+   - If REDUCING: "I'll reduce [Cluster] from [current] to [suggested] samples"
+   - If INCREASING but BELOW maximum: "I'll increase [Cluster] from [current] to [suggested] samples"
+   - If INCREASING BEYOND maximum: "The cluster has [max] samples (maximum available). To increase its influence, I'll set it to [max] samples and increase its weight to [weight]x (achieving [max × weight] effective influence)"
 4. Mention that the new suggestions will appear as a dashed line on the waveform
 5. Tell them they can drag the peaks to match the suggestions or adjust manually
 

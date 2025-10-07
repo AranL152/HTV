@@ -5,7 +5,7 @@
 import { config } from './config';
 import type {
   UploadResponse,
-  WaveformData,
+  AllWaveformsResponse,
   AdjustmentRequest,
   ApiError,
   ChatRequest,
@@ -98,23 +98,23 @@ export const apiClient = {
   },
 
   /**
-   * Get waveform data for a dataset
+   * Get all waveforms for a dataset
    */
-  async getWaveform(datasetId: string): Promise<WaveformData> {
+  async getWaveform(datasetId: string): Promise<AllWaveformsResponse> {
     const response = await fetchWithTimeout(
       `${API_URL}/api/waveform/${datasetId}`
     );
 
-    return handleResponse<WaveformData>(response);
+    return handleResponse<AllWaveformsResponse>(response);
   },
 
   /**
-   * Adjust peak selected counts
+   * Adjust user waveform counts and weights
    */
   async adjustAmplitudes(
     datasetId: string,
     adjustments: AdjustmentRequest
-  ): Promise<WaveformData> {
+  ): Promise<AllWaveformsResponse> {
     const response = await fetchWithTimeout(
       `${API_URL}/api/adjust/${datasetId}`,
       {
@@ -124,7 +124,7 @@ export const apiClient = {
       }
     );
 
-    return handleResponse<WaveformData>(response);
+    return handleResponse<AllWaveformsResponse>(response);
   },
 
   /**
@@ -165,7 +165,7 @@ export const apiClient = {
   /**
    * Get AI-suggested balance for dataset
    */
-  async suggestBalance(datasetId: string): Promise<WaveformData> {
+  async suggestBalance(datasetId: string): Promise<AllWaveformsResponse> {
     const response = await fetchWithTimeout(
       `${API_URL}/api/suggest-balance/${datasetId}`,
       {
@@ -175,7 +175,7 @@ export const apiClient = {
       60000 // 60s timeout for AI analysis
     );
 
-    return handleResponse<WaveformData>(response);
+    return handleResponse<AllWaveformsResponse>(response);
   },
 
   /**
