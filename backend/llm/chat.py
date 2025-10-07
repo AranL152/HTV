@@ -38,8 +38,8 @@ async def generate_chat_response(
         context_parts.append(
             f"\nCluster {peak['id']}:"
             f"\n  - Label: {peak['label']}"
-            f"\n  - Sample count: {peak['sampleCount']}"
-            f"\n  - Selected count: {peak['selectedCount']} ({selection_ratio:.1%})"
+            f"\n  - Original dataset: {peak['sampleCount']} samples"
+            f"\n  - User's current selection: {peak['selectedCount']} samples ({selection_ratio:.1%}), weight {peak.get('weight', 1.0):.2f}x"
             f"\n  - Position: {peak['x']:.2%} along data distribution"
             f"\n  - Sample examples: {', '.join(peak['samples'][:3])}"
         )

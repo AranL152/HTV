@@ -86,6 +86,18 @@ export const apiClient = {
   },
 
   /**
+   * Upload the sample dataset for testing
+   */
+  async uploadSampleDataset(): Promise<UploadResponse> {
+    const response = await fetchWithTimeout(`${API_URL}/api/upload-sample`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }, 180000);
+
+    return handleResponse<UploadResponse>(response);
+  },
+
+  /**
    * Get waveform data for a dataset
    */
   async getWaveform(datasetId: string): Promise<WaveformData> {

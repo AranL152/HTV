@@ -53,6 +53,78 @@ class ChatResponse(BaseModel):
     suggestions: dict | None = None  # Optional waveform suggestions
 
 
+async def _process_dataframe(df: pd.DataFrame) -> dict:
+    """
+    Shared processing pipeline for uploaded or sample datasets.
+    Returns dataset metadata.
+    """
+    # Generate unique dataset ID
+    dataset_id = str(uuid.uuid4())
+    print(f"Processing dataset {dataset_id} with {len(df)} rows")
+
+    # Process pipeline
+    print("Generating embeddings...")
+    embeddings = generate_embeddings(df)
+
+    # Check if CSV has predefined clusters
+    cluster_result = extract_clusters_from_csv(df)
+    cluster_labels_map = None
+
+    if cluster_result:
+        print("Using predefined clusters from CSV...")
+        clusters, cluster_labels_map = cluster_result
+    else:
+        print("Clustering data with K-Means...")
+        clusters = cluster_data(embeddings)
+
+    print("Analyzing clusters...")
+    descriptions = analyze_clusters(df, clusters, cluster_labels_map)
+
+    print("Building waveform...")
+    waveform_data = build_waveform(embeddings, clusters, descriptions, df)
+
+    # Generate AI suggestions automatically
+    print("Generating AI balance suggestions...")
+    suggestions = await suggest_balance(df, waveform_data)
+
+    # Apply suggestions to waveform
+    for peak in waveform_data['peaks']:
+        suggestion = next(
+            (s for s in suggestions['suggestions'] if s['id'] == peak['id']),
+            None
+        )
+        if suggestion:
+            peak['suggestedCount'] = suggestion['suggestedCount']
+            peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
+            peak['reasoning'] = suggestion.get('reasoning', '')
+
+    waveform_data['strategy'] = suggestions.get('overall_strategy', '')
+
+    # Create initial chat message
+    initial_message = {
+        'role': 'assistant',
+        'content': f"I've analyzed your dataset and found {len(waveform_data['peaks'])} clusters. {suggestions.get('overall_strategy', '')}",
+        'timestamp': pd.Timestamp.now().isoformat()
+    }
+
+    # Store everything including INITIAL AI baseline (never modified)
+    datasets[dataset_id] = {
+        'df': df,
+        'embeddings': embeddings,
+        'clusters': clusters,
+        'waveform': waveform_data,
+        'initial_ai_suggestions': suggestions,  # Store original AI recommendations as baseline (never modified)
+        'latest_ai_suggestions': suggestions,  # Current AI suggestions (updated by chat, source of truth for dashed line)
+        'chat_history': [initial_message]
+    }
+
+    return {
+        "dataset_id": dataset_id,
+        "total_points": waveform_data["totalPoints"],
+        "num_clusters": len(waveform_data["peaks"])
+    }
+
+
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     """
@@ -77,76 +149,79 @@ async def upload_file(file: UploadFile = File(...)):
     if len(df) == 0 or len(df) < 5:
         raise HTTPException(status_code=400, detail="Dataset must contain at least 5 rows")
 
-    # Generate unique dataset ID
-    dataset_id = str(uuid.uuid4())
-    print(f"Processing dataset {dataset_id} with {len(df)} rows")
-
     # Process pipeline
     try:
-        print("Generating embeddings...")
-        embeddings = generate_embeddings(df)
-
-        # Check if CSV has predefined clusters
-        cluster_result = extract_clusters_from_csv(df)
-        cluster_labels_map = None
-
-        if cluster_result:
-            print("Using predefined clusters from CSV...")
-            clusters, cluster_labels_map = cluster_result
-        else:
-            print("Clustering data with K-Means...")
-            clusters = cluster_data(embeddings)
-
-        print("Analyzing clusters...")
-        descriptions = analyze_clusters(df, clusters, cluster_labels_map)
-
-        print("Building waveform...")
-        waveform_data = build_waveform(embeddings, clusters, descriptions, df)
-
-        # Generate AI suggestions automatically
-        print("Generating AI balance suggestions...")
-        suggestions = await suggest_balance(df, waveform_data)
-
-        # Apply suggestions to waveform
-        for peak in waveform_data['peaks']:
-            suggestion = next(
-                (s for s in suggestions['suggestions'] if s['id'] == peak['id']),
-                None
-            )
-            if suggestion:
-                peak['suggestedCount'] = suggestion['suggestedCount']
-                peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
-                peak['reasoning'] = suggestion.get('reasoning', '')
-
-        waveform_data['strategy'] = suggestions.get('overall_strategy', '')
-
-        # Create initial chat message
-        initial_message = {
-            'role': 'assistant',
-            'content': f"I've analyzed your dataset and found {len(waveform_data['peaks'])} clusters. {suggestions.get('overall_strategy', '')}",
-            'timestamp': pd.Timestamp.now().isoformat()
-        }
-
-        # Store everything
-        datasets[dataset_id] = {
-            'df': df,
-            'embeddings': embeddings,
-            'clusters': clusters,
-            'waveform': waveform_data,
-            'chat_history': [initial_message]
-        }
-
-        return {
-            "dataset_id": dataset_id,
-            "total_points": waveform_data["totalPoints"],
-            "num_clusters": len(waveform_data["peaks"])
-        }
-
+        return await _process_dataframe(df)
     except Exception as e:
         import traceback
         print(f"Error occurred: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+@app.post("/api/upload-sample")
+async def upload_sample_dataset():
+    """
+    Load and process the sample dataset from a predefined path.
+    Returns dataset_id for subsequent requests.
+    """
+    sample_path = "/Users/evanhe/Downloads/ml_dataset.csv"
+
+    try:
+        df = pd.read_csv(sample_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load sample dataset: {str(e)}")
+
+    if len(df) == 0 or len(df) < 5:
+        raise HTTPException(status_code=400, detail="Sample dataset must contain at least 5 rows")
+
+    # Process pipeline
+    try:
+        return await _process_dataframe(df)
+    except Exception as e:
+        import traceback
+        print(f"Error occurred: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+def get_waveform_with_suggestions(dataset_id: str) -> dict:
+    """
+    Get waveform data merged with latest AI suggestions.
+
+    This is the single source of truth for waveform data with suggestions.
+    - waveform contains user's manual adjustments (selectedCount, weight)
+    - latest_ai_suggestions contains AI's recommendations (suggestedCount, suggestedWeight)
+    """
+    waveform = datasets[dataset_id]['waveform']
+    latest_suggestions = datasets[dataset_id].get('latest_ai_suggestions', {})
+
+    # Create a deep copy to avoid mutating the stored waveform
+    result = {
+        'peaks': [],
+        'totalPoints': waveform['totalPoints'],
+        'metrics': waveform['metrics'].copy(),
+        'strategy': latest_suggestions.get('overall_strategy', '')
+    }
+
+    # Merge latest AI suggestions into waveform peaks
+    for peak in waveform['peaks']:
+        peak_copy = peak.copy()
+
+        # Find matching suggestion
+        suggestion = next(
+            (s for s in latest_suggestions.get('suggestions', []) if s['id'] == peak['id']),
+            None
+        )
+
+        if suggestion:
+            peak_copy['suggestedCount'] = suggestion['suggestedCount']
+            peak_copy['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
+            peak_copy['reasoning'] = suggestion.get('reasoning', '')
+
+        result['peaks'].append(peak_copy)
+
+    return result
 
 
 @app.get("/api/waveform/{dataset_id}")
@@ -155,12 +230,12 @@ async def get_waveform(dataset_id: str):
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    return datasets[dataset_id]['waveform']
+    return get_waveform_with_suggestions(dataset_id)
 
 
 @app.post("/api/adjust/{dataset_id}")
 async def adjust_counts(dataset_id: str, request: AdjustmentRequest):
-    """Adjust peak selected counts and recalculate metrics."""
+    """Adjust peak selected counts and/or weights (user manual adjustments only)."""
     if dataset_id not in datasets:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -182,7 +257,8 @@ async def adjust_counts(dataset_id: str, request: AdjustmentRequest):
                 )
             # Weight validation is handled by Pydantic (0.1-5.0)
 
-    # Update selected counts and/or weights
+    # Update ONLY user-controlled values: selectedCount and weight
+    # DO NOT touch suggestedCount/suggestedWeight (those come from latest_ai_suggestions)
     for adjustment in request.adjustments:
         for peak in waveform['peaks']:
             if peak['id'] == adjustment.id:
@@ -205,7 +281,8 @@ async def adjust_counts(dataset_id: str, request: AdjustmentRequest):
         "avgAmplitude": float(sum(selection_ratios) / len(selection_ratios))
     }
 
-    return waveform
+    # Return merged view with latest AI suggestions
+    return get_waveform_with_suggestions(dataset_id)
 
 
 @app.get("/api/export/{dataset_id}")
@@ -299,94 +376,32 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         }
         datasets[dataset_id]['chat_history'].append(user_message)
 
-        # HARDCODED DEMO: First chat message always adjusts Big Tech Veterans
-        chat_count = len([m for m in datasets[dataset_id].get('chat_history', []) if m['role'] == 'user'])
-
         # Add 1 second delay for more natural feel
         await asyncio.sleep(1.0)
 
-        # Generate chat response (hardcoded for first message to reflect user's request)
-        if chat_count == 0:
-            response_text = f"Understood. I'll reduce Big Tech Veterans significantly. The new suggestion will appear as a dashed line on the waveform - you can drag the peak to match it or adjust manually."
-        else:
-            response_text = await generate_chat_response(df, waveform, request.message)
+        # Generate chat response using AI
+        response_text = await generate_chat_response(df, waveform, request.message)
 
         # Check if user is asking for balance adjustments
-        # HARDCODED: Force first message to always generate suggestions
-        if chat_count == 0:
-            should_generate_suggestions = True
-            print(f"🎯 HARDCODED: First message - forcing balance suggestions")
-        else:
-            should_generate_suggestions = await detect_balance_request(request.message)
-            print(f"🔍 Balance request detection: '{request.message}' -> {should_generate_suggestions}")
-        print(f"📊 Chat count: {chat_count}")
+        should_generate_suggestions = await detect_balance_request(request.message)
+        print(f"🔍 Balance request detection: '{request.message}' -> {should_generate_suggestions}")
 
         # If user wants balance adjustments, generate new suggestions
-        new_suggestions = None
         if should_generate_suggestions:
             print("✅ Generating new balance suggestions...")
             try:
-                # HARDCODED: First message always reduces Big Tech Veterans to 50
-                if chat_count == 0:
-                    print("🎯 HARDCODED: First message - Big Tech Veterans → 50")
-                    suggestions_data = {'suggestions': [], 'overall_strategy': 'Reducing Big Tech Veterans dominance to improve balance.'}
-                    for peak in waveform['peaks']:
-                        if 'Big Tech Veterans' in peak['label']:
-                            suggestions_data['suggestions'].append({
-                                'id': peak['id'],
-                                'suggestedCount': 50,
-                                'suggestedWeight': 0.3,
-                                'reasoning': 'Reducing Big Tech Veterans from 360 to 50 to address political bias and improve diversity.'
-                            })
-                        else:
-                            suggestions_data['suggestions'].append({
-                                'id': peak['id'],
-                                'suggestedCount': int(peak['sampleCount'] * 0.85),
-                                'suggestedWeight': 1.0,
-                                'reasoning': 'Maintaining cluster at current level.'
-                            })
-                else:
-                    # Normal AI-based suggestions after first message
-                    suggestions_data = await suggest_balance(df, waveform, request.message)
+                # Use AI to generate suggestions based on user request, WITH initial AND latest AI baselines
+                initial_ai_suggestions = dataset_info.get('initial_ai_suggestions')
+                latest_ai_suggestions = dataset_info.get('latest_ai_suggestions')
+                suggestions_data = await suggest_balance(df, waveform, request.message, initial_ai_suggestions, latest_ai_suggestions)
 
-                # Build waveform with new suggestions
-                suggested_waveform = {
-                    'peaks': [],
-                    'totalPoints': waveform['totalPoints'],
-                    'metrics': {},
-                    'strategy': suggestions_data.get('overall_strategy', '')
-                }
-
-                for peak in waveform['peaks']:
-                    suggested_peak = peak.copy()
-                    suggestion = next(
-                        (s for s in suggestions_data['suggestions'] if s['id'] == peak['id']),
-                        None
-                    )
-                    if suggestion:
-                        suggested_peak['suggestedCount'] = min(suggestion['suggestedCount'], peak['sampleCount'])
-                        suggested_peak['suggestedWeight'] = suggestion.get('suggestedWeight', 1.0)
-                        suggested_peak['reasoning'] = suggestion.get('reasoning', '')
-                    suggested_waveform['peaks'].append(suggested_peak)
-
-                # Calculate metrics
-                suggestion_ratios = [
-                    peak['suggestedCount'] / peak['sampleCount'] if peak['sampleCount'] > 0 else 1.0
-                    for peak in suggested_waveform['peaks']
-                ]
-                gini = calculate_gini_coefficient(suggestion_ratios)
-
-                suggested_waveform['metrics'] = {
-                    "giniCoefficient": float(gini),
-                    "flatnessScore": float(1 - gini),
-                    "avgAmplitude": float(sum(suggestion_ratios) / len(suggestion_ratios))
-                }
-
-                new_suggestions = suggested_waveform
-                print(f"✅ Generated {len(suggested_waveform['peaks'])} peak suggestions")
+                # Store as latest AI suggestions (separate from waveform)
+                # This becomes the new source of truth for suggestedCount/suggestedWeight
+                datasets[dataset_id]['latest_ai_suggestions'] = suggestions_data
+                print(f"✅ Generated and stored {len(suggestions_data.get('suggestions', []))} AI suggestions")
             except Exception as e:
                 print(f"❌ Failed to generate suggestions: {str(e)}")
-                # Continue without suggestions if generation fails
+                # Continue without updating suggestions if generation fails
 
         # Store assistant message
         assistant_message = {
@@ -396,10 +411,13 @@ async def chat_about_dataset(dataset_id: str, request: ChatRequest):
         }
         datasets[dataset_id]['chat_history'].append(assistant_message)
 
-        print(f"📤 Returning chat response with suggestions: {new_suggestions is not None}")
+        # Return merged waveform with latest AI suggestions (if suggestions were generated)
+        suggestions_waveform = get_waveform_with_suggestions(dataset_id) if should_generate_suggestions else None
+
+        print(f"📤 Returning chat response with suggestions: {suggestions_waveform is not None}")
         return ChatResponse(
             response=response_text,
-            suggestions=new_suggestions
+            suggestions=suggestions_waveform
         )
 
     except Exception as e:

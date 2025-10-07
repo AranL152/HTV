@@ -43,6 +43,19 @@ export default function Home() {
     fileInputRef.current?.click();
   };
 
+  const handleSampleDataset = async () => {
+    setUploading(true);
+    setError(null);
+
+    try {
+      const data = await apiClient.uploadSampleDataset();
+      router.push(`/visualize?id=${data.dataset_id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load sample dataset");
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="relative flex flex-col min-h-screen overflow-hidden bg-black">
       <Header />
@@ -168,21 +181,31 @@ export default function Home() {
 
         {/* CTA Section */}
         <div className="flex flex-col items-center gap-6 group">
-          <button
-            onClick={triggerFileSelect}
-            disabled={uploading}
-            className="relative px-5 py-2.5  text-black text-sm font-medium rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="flex items-center gap-2">
-              {uploading ? (
-                <LoadingSpinner />
-              ) : (
-                <span className="bg-white py-3 px-4 rounded-xl text-black">
-                  get started
-                </span>
-              )}
-            </span>
-          </button>
+          <div className="relative flex items-center justify-center min-h-[60px]">
+            {uploading ? (
+              <LoadingSpinner />
+            ) : (
+              <>
+                <button
+                  onClick={triggerFileSelect}
+                  className="relative px-5 py-2.5 text-black text-sm font-medium rounded-lg transition-all duration-300"
+                >
+                  <span className="bg-white py-3 px-4 rounded-xl text-black">
+                    get started
+                  </span>
+                </button>
+
+                <button
+                  onClick={handleSampleDataset}
+                  className="relative px-5 py-2.5 text-white text-sm font-medium rounded-lg transition-all duration-300"
+                >
+                  <span className="border border-white/30 py-3 px-4 rounded-xl text-white hover:bg-white/10 transition-colors">
+                    try sample
+                  </span>
+                </button>
+              </>
+            )}
+          </div>
 
           {/* Status messages */}
           {file && !error && !uploading && (

@@ -13,29 +13,36 @@ interface WaveformProps {
 }
 
 export default function Waveform({ datasetId, initialData, onDataUpdate, onClusterClick, mode }: WaveformProps) {
+  // Local state synced from parent - allows re-renders during drag
   const [data, setData] = useState<WaveformData>(initialData);
   const [draggingPeak, setDraggingPeak] = useState<number | null>(null);
   const [hoveredPeak, setHoveredPeak] = useState<number | null>(null);
   const [hasDragged, setHasDragged] = useState(false);
+  // Temporary state for optimistic drag updates before API sync
+  const [tempDragData, setTempDragData] = useState<WaveformData | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Sync internal state when initialData changes (e.g., from chat suggestions)
+  // Sync with parent when initialData changes (from chat or mode switch)
   useEffect(() => {
     setData(initialData);
+    setTempDragData(null); // Clear temp drag state on parent update
   }, [initialData]);
+
+  // Use temp drag data while dragging, otherwise use synced data
+  const displayData = tempDragData || data;
 
   const width = 1100;
   const height = 700;
   const padding = 100;
 
   const generateSmoothPath = () => {
-    if (data.peaks.length === 0) return "";
+    if (displayData.peaks.length === 0) return "";
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
-      const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+      const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
 
-      const points = data.peaks.map((p) => {
+      const points = displayData.peaks.map((p) => {
         // Calculate ratio based on absolute count vs max count
         const selectedCount = p.selectedCount ?? p.sampleCount;
         const ratio = maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
@@ -61,7 +68,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
       const minWeight = 0.01;
       const maxWeight = 2;
 
-      const points = data.peaks.map((p) => {
+      const points = displayData.peaks.map((p) => {
         const weight = p.weight ?? 1.0;
         // Normalize to 0-1 range where 0.01 = bottom, 1.0 ≈ middle, 2.0 = top
         const ratio = (weight - minWeight) / (maxWeight - minWeight);
@@ -86,13 +93,13 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   };
 
   const generateGhostPath = () => {
-    if (data.peaks.length === 0) return "";
+    if (displayData.peaks.length === 0) return "";
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
-      const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+      const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
 
-      const points = data.peaks.map((p) => {
+      const points = displayData.peaks.map((p) => {
         // Always use original sampleCount for ghost path
         const ratio = maxSampleCount > 0 ? p.sampleCount / maxSampleCount : 1;
         return {
@@ -118,7 +125,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
       const minWeight = 0.01;
       const maxWeight = 2;
 
-      const points = data.peaks.map((p) => {
+      const points = displayData.peaks.map((p) => {
         // Baseline 1.0 maps to near middle
         const ratio = (baselineWeight - minWeight) / (maxWeight - minWeight);
         return {
@@ -142,20 +149,20 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
   };
 
   const generateSuggestedPath = () => {
-    if (data.peaks.length === 0) return "";
+    if (displayData.peaks.length === 0) return "";
 
     // Check if any peak has suggested counts or weights
     const hasSuggestions = mode === 'count'
-      ? data.peaks.some(p => p.suggestedCount !== undefined)
-      : data.peaks.some(p => p.suggestedWeight !== undefined);
+      ? displayData.peaks.some(p => p.suggestedCount !== undefined)
+      : displayData.peaks.some(p => p.suggestedWeight !== undefined);
 
     if (!hasSuggestions) return '';
 
     if (mode === 'count') {
       // Find the maximum cluster size to normalize heights
-      const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
+      const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
 
-      const points = data.peaks.map((p) => {
+      const points = displayData.peaks.map((p) => {
         // Use suggestedCount if available, fallback to selectedCount
         const suggestedCount = p.suggestedCount ?? p.selectedCount;
         const ratio = maxSampleCount > 0 ? suggestedCount / maxSampleCount : 1;
@@ -181,7 +188,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
       const minWeight = 0.01;
       const maxWeight = 2;
 
-      const points = data.peaks.map((p) => {
+      const points = displayData.peaks.map((p) => {
         const suggestedWeight = p.suggestedWeight ?? (p.weight ?? 1.0);
         const ratio = (suggestedWeight - minWeight) / (maxWeight - minWeight);
         return {
@@ -218,13 +225,16 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     const normalizedY = (y - padding) / (height - 2 * padding);
     const ratio = Math.max(0, Math.min(1, 1 - normalizedY));
 
-    setData((prevData) => {
+    // Update temporary drag state for immediate visual feedback
+    setTempDragData((prevData) => {
+      const baseData = prevData || data;
+
       if (mode === 'count') {
-        const maxSampleCount = Math.max(...prevData.peaks.map((p) => p.sampleCount));
+        const maxSampleCount = Math.max(...baseData.peaks.map((p) => p.sampleCount));
 
         return {
-          ...prevData,
-          peaks: prevData.peaks.map((peak) => {
+          ...baseData,
+          peaks: baseData.peaks.map((peak) => {
             if (peak.id === draggingPeak) {
               // Calculate count based on ratio relative to max, but clamp to peak's sampleCount
               const absoluteCount = Math.round(ratio * maxSampleCount);
@@ -240,8 +250,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         const maxWeight = 2;
 
         return {
-          ...prevData,
-          peaks: prevData.peaks.map((peak) => {
+          ...baseData,
+          peaks: baseData.peaks.map((peak) => {
             if (peak.id === draggingPeak) {
               // Calculate weight based on ratio (0.01 to 2 range)
               const newWeight = minWeight + ratio * (maxWeight - minWeight);
@@ -260,7 +270,10 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
 
     const peakId = draggingPeak;
     const wasDragged = hasDragged;
-    const adjustedPeak = data.peaks.find((p) => p.id === draggingPeak);
+
+    // Get the adjusted peak from temp drag data if available
+    const currentData = tempDragData || data;
+    const adjustedPeak = currentData.peaks.find((p) => p.id === draggingPeak);
 
     if (!adjustedPeak) return;
 
@@ -268,10 +281,11 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     if (!wasDragged && onClusterClick) {
       onClusterClick(peakId);
       setDraggingPeak(null);
+      setTempDragData(null);
       return;
     }
 
-    // Otherwise, update the selectedCount or weight
+    // Otherwise, sync with backend and update parent state
     try {
       if (mode === 'count') {
         const selectedCount = adjustedPeak.selectedCount ?? adjustedPeak.sampleCount;
@@ -279,7 +293,6 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
           adjustments: [{ id: adjustedPeak.id, selectedCount }],
         });
 
-        setData(updatedData);
         onDataUpdate(updatedData);
       } else {
         const weight = adjustedPeak.weight ?? 1.0;
@@ -287,7 +300,6 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
           adjustments: [{ id: adjustedPeak.id, weight }],
         });
 
-        setData(updatedData);
         onDataUpdate(updatedData);
       }
     } catch (err) {
@@ -295,7 +307,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
     }
 
     setDraggingPeak(null);
-  }, [draggingPeak, hasDragged, data.peaks, mode, onClusterClick, datasetId, onDataUpdate]);
+    setTempDragData(null);
+  }, [draggingPeak, hasDragged, tempDragData, data, mode, onClusterClick, datasetId, onDataUpdate]);
 
   const handleMouseUp = async () => {
     await finishDrag();
@@ -347,8 +360,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         {/* Ghost peak markers (original cluster sizes or baseline weight) */}
         {(() => {
           if (mode === 'count') {
-            const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
-            return data.peaks.map((peak) => {
+            const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
+            return displayData.peaks.map((peak) => {
               const ratio = maxSampleCount > 0 ? peak.sampleCount / maxSampleCount : 1;
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
@@ -371,7 +384,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             const baselineWeight = 1.0;
             const minWeight = 0.01;
             const maxWeight = 2;
-            return data.peaks.map((peak) => {
+            return displayData.peaks.map((peak) => {
               const ratio = (baselineWeight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;
               const y = (1 - ratio) * (height - 2 * padding) + padding;
@@ -395,14 +408,14 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         {/* AI Suggested peak markers */}
         {(() => {
           const hasSuggestions = mode === 'count'
-            ? data.peaks.some(p => p.suggestedCount !== undefined)
-            : data.peaks.some(p => p.suggestedWeight !== undefined);
+            ? displayData.peaks.some(p => p.suggestedCount !== undefined)
+            : displayData.peaks.some(p => p.suggestedWeight !== undefined);
 
           if (!hasSuggestions) return null;
 
           if (mode === 'count') {
-            const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
-            return data.peaks.map((peak) => {
+            const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
+            return displayData.peaks.map((peak) => {
               if (peak.suggestedCount === undefined) return null;
 
               const ratio = maxSampleCount > 0 ? peak.suggestedCount / maxSampleCount : 1;
@@ -426,7 +439,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             // Weight mode - fixed scale 0.01 to 2
             const minWeight = 0.01;
             const maxWeight = 2;
-            return data.peaks.map((peak) => {
+            return displayData.peaks.map((peak) => {
               if (peak.suggestedWeight === undefined) return null;
 
               const ratio = (peak.suggestedWeight - minWeight) / (maxWeight - minWeight);
@@ -453,8 +466,8 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
         <g className="z-10">
         {(() => {
           if (mode === 'count') {
-            const maxSampleCount = Math.max(...data.peaks.map((p) => p.sampleCount));
-            return data.peaks.map((peak) => {
+            const maxSampleCount = Math.max(...displayData.peaks.map((p) => p.sampleCount));
+            return displayData.peaks.map((peak) => {
               const selectedCount = peak.selectedCount ?? peak.sampleCount;
               const ratio = maxSampleCount > 0 ? selectedCount / maxSampleCount : 1;
               const x = peak.x * (width - 2 * padding) + padding;
@@ -509,7 +522,7 @@ export default function Waveform({ datasetId, initialData, onDataUpdate, onClust
             // Weight mode - fixed scale 0.01 to 2
             const minWeight = 0.01;
             const maxWeight = 2;
-            return data.peaks.map((peak) => {
+            return displayData.peaks.map((peak) => {
               const weight = peak.weight ?? 1.0;
               const ratio = (weight - minWeight) / (maxWeight - minWeight);
               const x = peak.x * (width - 2 * padding) + padding;

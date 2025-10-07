@@ -83,6 +83,17 @@ CURRENT DATASET STATE:
 
 TASK: Analyze each cluster and suggest rebalancing based on SCIENTIFIC vs POLITICAL bias distinction.
 
+IMPORTANT: You have access to THREE key values for each cluster:
+1. **Original dataset size** - The raw, unfiltered dataset
+2. **Initial AI recommendation (your baseline)** - YOUR FIRST analysis from when the dataset was uploaded
+3. **User's current selection** - What the user has manually set (may not match your recommendations)
+
+When generating NEW suggestions, you MUST:
+- START from your "Initial AI recommendation" as the baseline
+- DO NOT start from the user's current selection (they may not have applied your suggestions yet)
+- Adjust your baseline based on the user's NEW request
+- If the user hasn't dragged any peaks, their "current selection" equals the original dataset size
+
 DECISION FRAMEWORK:
 
 For each cluster, ask:
@@ -157,7 +168,7 @@ User Question: {user_question}
 IMPORTANT: When the user asks to adjust, reduce, increase, or rebalance ANY cluster or the dataset:
 1. Acknowledge their request
 2. Tell them you're generating new suggestions
-3. Explain what changes you're making (e.g., "I'll reduce Big Tech Veterans from 360 to ~250 samples and lower its weight to 0.7")
+3. Explain what changes you're making using the ACTUAL numbers from your analysis (include the specific cluster name, current count, and your suggested count/weight)
 4. Mention that the new suggestions will appear as a dashed line on the waveform
 5. Tell them they can drag the peaks to match the suggestions or adjust manually
 

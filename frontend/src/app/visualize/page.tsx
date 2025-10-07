@@ -42,6 +42,28 @@ function VisualizeContent() {
     fetchWaveform();
   }, [datasetId]);
 
+  // Merge chat suggestions with current state instead of replacing
+  const mergeSuggestions = (suggestions: WaveformData) => {
+    setData(current => {
+      if (!current) return suggestions;  // Fallback if no current state
+
+      return {
+        ...current,
+        peaks: current.peaks.map(peak => {
+          const newSuggestion = suggestions.peaks.find(p => p.id === peak.id);
+          return newSuggestion ? {
+            ...peak,  // Preserve selectedCount, weight (user's manual adjustments)
+            suggestedCount: newSuggestion.suggestedCount,  // Update AI suggestion
+            suggestedWeight: newSuggestion.suggestedWeight,  // Update AI weight suggestion
+            reasoning: newSuggestion.reasoning  // Update reasoning
+          } : peak;
+        }),
+        strategy: suggestions.strategy,  // Update overall strategy
+        metrics: suggestions.metrics  // Update metrics based on suggestions
+      };
+    });
+  };
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -92,7 +114,7 @@ function VisualizeContent() {
             <MetricsPanel
               data={data}
               datasetId={datasetId}
-              onSuggestionsReceived={setData}
+              onSuggestionsReceived={mergeSuggestions}
               mode={mode}
             />
           </div>
